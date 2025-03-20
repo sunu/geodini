@@ -1,0 +1,53 @@
+services:
+  api-prod:
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile.api
+    image: geodini-api:prod
+    ports:
+      - "19000:9000"
+    environment:
+      - PORT=9000
+      # Add other environment variables as needed
+    env_file:
+      - .env
+    volumes:
+    #   - ./geodini:/app/geodini
+      - ./data:/app/data
+    networks:
+      - caddy
+      - default
+    labels:
+      caddy: api.geodini.labs.sunu.in
+      caddy.reverse_proxy: "{{upstreams 9000}}"
+
+  frontend-prod:
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile.frontend
+    image: geodini-frontend:prod
+    ports:
+      - "10080:80"
+    networks:
+      - caddy
+      - default
+    labels:
+      caddy: geodini.labs.sunu.in
+      caddy.reverse_proxy: "{{upstreams 80}}"
+    depends_on:
+      - api-prod
+  
+  # database:
+  #   image: postgis/postgis:17-3.4
+  #   ports:
+  #     - "15432:5432"
+  #   environment:
+  #     - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+  #   networks:
+  #     - default
+  #   volumes:
+  #     - ./data/postgres:/var/lib/postgresql/data
+
+networks:
+  caddy:
+    external: true

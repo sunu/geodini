@@ -1,0 +1,24 @@
+[project]
+name = "geodini-web"
+version = "0.1.0"
+description = "A natural language interface for geospatial data"
+authors = []
+dependencies = [
+    "typer>=0.9.0",
+    "rich>=13.7.0",
+    "pandas>=2.2.0",
+    "duckdb>=0.10.0",
+    "openai>=1.0.0",
+    "dotenv",
+]
+requires-python = ">=3.9"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project.scripts]
+geodini = "geodini.cli:app"
+
+[tool.hatch.build.targets.wheel]
+entry-points = {"console_scripts": ["geodini=geodini.cli.tools.agents:search_places"]} 

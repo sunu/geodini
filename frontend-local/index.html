@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geodini Search</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Leaflet CSS for maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <h1>
+                <a href="/" class="logo-link">
+                    <i class="fas fa-globe-americas"></i> Geodini Search
+                </a>
+            </h1>
+            <p>Search for places around the world</p>
+        </header>
+
+        <div class="search-container">
+            <form id="search-form">
+                <div class="search-input-group">
+                    <input type="text" id="search-query" placeholder="Search for a place..." required>
+                    <button type="submit" id="search-button">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="search-info" id="search-info">
+            <div class="info-card">
+                <h3><i class="fas fa-lightbulb"></i> How Search Works</h3>
+                <p>Here's how the search works:</p>
+                <ul>
+                    <li><i class="fas fa-brain"></i> We use LLMs to understand the query and rephrase it for better results</li>
+                    <li><i class="fas fa-database"></i> We query Overture data for administrative boundaries</li>
+                    <li><i class="fas fa-sort-amount-down"></i> We use LLMs to rank the results based on relevance</li>
+                </ul>
+                <div class="examples">
+                    <h4>Examples:</h4>
+                    <ul>
+                        <li><i class="fas fa-spell-check"></i> Handles typos: <span class="clickable-example" data-query="San fransico">"San fransico"</span> → "San Francisco"</li>
+                        <li><i class="fas fa-globe"></i> Understands context: <span class="clickable-example" data-query="London not in the UK but in Canada">"London not in the UK but in Canada"</span> → "London, Ontario"</li>
+                        <li><i class="fas fa-comment-dots"></i> Processes verbose queries: <span class="clickable-example" data-query="the great city of New York">"the great city of New York"</span> → "New York City"</li>
+                    </ul>
+                </div>
+                <p class="note">This is a very early prototype, so the results might not always be accurate.</p>
+            </div>
+        </div>
+
+        <div class="results-container hidden" id="results-container">
+            <div class="results-header">
+                <h2>Search Results</h2>
+                <span id="result-count"></span>
+                <span id="query-time"></span>
+            </div>
+            
+            <div class="results-table-container">
+                <table id="results-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Type</th>
+                            <th>Country</th>
+                            <th>Hierarchy</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="results-body">
+                        <!-- Results will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <div id="no-results" class="hidden">
+                <p>No results found for your search.</p>
+            </div>
+        </div>
+        
+        <div id="map-drawer" class="map-drawer">
+            <div class="map-header">
+                <h3 id="map-title">Location Map</h3>
+                <button id="close-map" class="close-button">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div id="map"></div>
+        </div>
+        
+        <div id="overlay" class="overlay hidden"></div>
+        
+        <div id="loading" class="loading hidden">
+            <div class="spinner"></div>
+            <p>Searching...</p>
+        </div>
+        
+        <footer>
+            <p>Powered by <a href="http://localhost:29000/docs" target="_blank">Geodini API</a> | <a href="https://github.com/sunu/geodini" target="_blank">GitHub</a></p>
+        </footer>
+    </div>
+
+    <!-- Leaflet JS for maps -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="app.js"></script>
+</body>
+</html> 

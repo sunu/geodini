@@ -1,0 +1,24 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Copy requirements first to leverage Docker cache
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the rest of the application
+COPY geodini/ ./geodini
+
+COPY api.py .
+
+COPY setup.py .
+RUN pip install --no-cache-dir -e .
+
+COPY geodini_kba/ /geodini_kba
+RUN pip install --no-cache-dir -e /geodini_kba
+
+# Expose the port the app runs on
+EXPOSE 9000
+
+# Command to run the application
+CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "9000"] 
