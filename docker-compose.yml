@@ -1,0 +1,95 @@
+services:
+  init-data:
+    build:
+      context: .
+      dockerfile: Dockerfile.duckdb
+    volumes:
+      - ./scripts:/scripts
+      - ./data:/data
+    command: ["/bin/bash", "-c", "chmod +x /scripts/init-data.sh && /scripts/init-data.sh"]
+
+    # This service is for initialization, so no ports are exposed.
+    # It will run, and upon successful completion, other services depending on it will start.
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "29000:9000"
+    environment:
+      - PORT=9000
+      - POSTGRES_HOST=database
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=postgres
+      - DATA_PATH=/app/data/overture-unified.duckdb
+      # Add other environment variables as needed
+    env_file:
+      - .env
+    volumes:
+      - ./geodini:/app/geodini
+      - ./data:/app/data
+    command: ["uvicorn", "geodini.api.api:app", "--host", "0.0.0.0", "--port", "9000", "--reload"] 
+    depends_on:
+      database:
+        condition: service_healthy
+      init-data:
+        condition: service_completed_successfully
+
+  mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "29001:9001"
+    environment:
+      - PORT=9001
+      - POSTGRES_HOST=database
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=postgres
+      # Add other environment variables as needed
+    env_file:
+      - .env
+    volumes:
+      - ./geodini:/app/geodini
+      - ./data:/app/data
+    command: ["python", "geodini/api/mcp_server.py"] 
+    depends_on:
+      database:
+        condition: service_healthy
+      init-data:
+        condition: service_completed_successfully
+      
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "20080:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html
+    environment:
+      - GEODINI_API_URL=http://localhost:29000
+    depends_on:
+      - api
+  
+  database:
+    image: postgis/postgis:17-3.4
+    ports:
+      - "15432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=postgres
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

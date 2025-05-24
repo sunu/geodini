@@ -1,8 +1,8 @@
-from geodini import tools as geodini_tools
+from geodini import agents as geodini_agents
 from typing import Optional
 
 
-@geodini_tools.hookimpl
+@geodini_agents.hookimpl
 def get_geocoders(geocoders):
     """Here the caller expects us to return a list."""
     return [kba_geocoder]

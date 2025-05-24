@@ -5,8 +5,11 @@ import duckdb
 import json
 
 # get data path from current file
-DATA_PATH = os.path.join(
-    os.path.dirname(__file__), "..", "..", "data", "overture-unified.duckdb"
+DATA_PATH = os.environ.get(
+    "DATA_PATH",
+    os.path.join(
+        os.path.dirname(__file__), "..", "..", "..", "data", "overture-unified.duckdb"
+    ),
 )
 
 

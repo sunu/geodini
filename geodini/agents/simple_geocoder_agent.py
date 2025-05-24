@@ -7,7 +7,9 @@ from pprint import pprint
 import time
 import pluggy
 
-from geodini.tools import hookspecs, lib, geocoder
+from geodini import lib
+from geodini.agents.utils import geocoder
+from geodini import hookspecs
 
 
 def get_plugin_manager():

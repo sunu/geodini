@@ -12,10 +12,14 @@ from shapely.ops import transform
 from pyproj import Transformer
 import numpy
 from pydantic_ai.mcp import MCPServerStdio
+import traceback
 
 
-from geodini.tools.agents import search_places, SearchContext
-from geodini.tools.utils.duckdb_exec import duckdb_sanbox
+from geodini.agents.simple_geocoder_agent import search_places, SearchContext
+from geodini.agents.utils.duckdb_exec import duckdb_sanbox
+from geodini.agents.utils.postgis_exec import (
+    postgis_agent, run_postgis_query, insert_place, clear_geometries_table, postgis_query_judgement_agent
+)
 
 run_python_server_params = StdioServerParameters(
     command='deno',
@@ -197,12 +201,60 @@ duckdb_agent = Agent(
         For the given user query, return the duckdb query to execute to construct the geojson geometry of the AOI related to the query as a single geojson geometry.
         Use the `ST_GeomFromGeoJSON` function to construct the geometry from the geojson string.
         Use ST_Transform(geometry, 'EPSG:4326', 'EPSG:3857') and ST_Transform(geometry, 'EPSG:3857', 'EPSG:4326') to reproject the geometry to and from EPSG:3857 as required.
+        Note that ST_Transform will always expect two SRID arguments. Explicitly specify both the source and target SRIDs
         Use ST_AsGeoJSON(geometry) to return the final geojson geometry.
+        Do not use transforms unnecessarily if not required.
         Return only the duckdb SQL query, nothing else.
 
         Some duckdb caveats to note:
         - `ST_Union` works with two geometries. Use `ST_Union_Agg` to union multiple geometries.
         - While transforming geometries, make sure reprojections are not applied to already projected geometries.
+    """
+)
+
+duckdb_query_judgement_agent = Agent(
+    "openai:gpt-4o",
+    output_type=DuckDBQueryResult,
+    system_prompt="""
+        You are an expert in duckdb and SQL. Given the user's query, check and fix the given duckdb SQL query
+        if needed and return the correct duckdb SQL query.
+
+        If the query is already correct, return the query as is.
+
+        Return only the duckdb SQL query, nothing else.
+
+        Some duckdb caveats to note:
+        - the data is in place table in geojson format. Has the following columns: name, geojson.
+        - `ST_Union` works with two geometries. Use `ST_Union_Agg` to union multiple geometries.
+        - When requesting borders, we are interested in shared borders between the geometries. Use `ST_Intersection` to get the shared borders.
+        - For any spatial operation, make sure to reproject the geometries to EPSG:3857 before performing the operation, and then reproject the result back to EPSG:4326 for the final result.
+        - ST_Transform will always expect two SRID arguments. And the SRID will of the form 'EPSG:4326' or 'EPSG:3857' etc
+
+        Here are some examples of queries and the correct duckdb SQL query:
+        - Query: "10km within the border of France and Spain"
+        - SQL: SELECT ST_AsGeoJSON(ST_Transform(ST_Buffer(ST_Intersection(
+                (SELECT ST_Union_Agg(ST_Transform(ST_GeomFromGeoJSON(geojson), 'EPSG:4326', 'EPSG:3857')) FROM place WHERE name = 'France'),
+                (SELECT ST_Union_Agg(ST_Transform(ST_GeomFromGeoJSON(geojson), 'EPSG:4326', 'EPSG:3857')) FROM place WHERE name = 'Spain')
+            ), 10000), 'EPSG:3857', 'EPSG:4326')) AS border_buffer_10km
+        - Query: "India east of Delhi"
+        - SQL: WITH
+                delhi_x AS (
+                    SELECT ST_XMax(ST_GeomFromGeoJSON(geojson)) AS x
+                    FROM place
+                    WHERE name = 'Delhi'
+                ),
+                india AS (
+                    SELECT ST_GeomFromGeoJSON(geojson) AS geom
+                    FROM place
+                    WHERE name = 'India'
+                )
+                SELECT ST_AsGeoJSON(
+                ST_Intersection(
+                    india.geom,
+                    ST_MakeEnvelope(delhi_x.x, -90, 180, 90)
+                )
+                ) AS geojson
+                FROM india, delhi_x;
     """
 )
 
@@ -232,7 +284,9 @@ async def geocode_complex(query: str) -> Dict[str, Any]:
         input_geometries = {}
         for geocoding_query in geocoding_queries:
             result = await search_places(geocoding_query)
-            input_geometries[geocoding_query] = simplify_geometry(result["most_probable"]["geometry"])
+            # input_geometries[geocoding_query] = simplify_geometry(result["most_probable"]["geometry"])
+            # when using duckdb, dont need to simplify as much
+            input_geometries[geocoding_query] = simplify_geometry(result["most_probable"]["geometry"], 1000)
 
         ## Python Coding Agent
 
@@ -277,23 +331,108 @@ async def geocode_complex(query: str) -> Dict[str, Any]:
 
         ## DuckDB Agent
 
-        duckdb_query_result = await duckdb_agent.run(
-            user_prompt=f"Search query: {query}. Geometries available in the place table: {input_geometries.keys()}"
+        # duckdb_query_result = await duckdb_agent.run(
+        #     user_prompt=f"Search query: {query}. Geometries available in the place table: {input_geometries.keys()}"
+        # )
+        # sql_query = duckdb_query_result.output.query
+        # print(f"DuckDB query result: {sql_query}")
+        # checked_query = await duckdb_query_judgement_agent.run(
+        #     user_prompt=f"""
+        #     If I have geometries of {", ".join(input_geometries.keys())},
+        #     what's the duckdb SQL query to answer the query {query}?
+
+        #     Modify and fix this SQL as required:
+        #     {sql_query}
+        #     """
+        # )
+        # print(f"Checked query: {checked_query.output.query}")
+        # try:
+        #     result = duckdb_sanbox(input_geometries, checked_query.output.query)
+        #     # print(f"Result: {result}")
+        # except Exception as e:
+        #     error_traceback = traceback.format_exc()
+        #     print(f"Error traceback:\n {error_traceback}")
+        #     user_prompt = f"""
+        #     If I have geometries of {", ".join(input_geometries.keys())},
+        #     what's the duckdb SQL query to answer the query {query}?
+
+        #     Modify and fix this SQL as required:
+        #     {checked_query.output.query}
+
+        #     I'm running into the following error:
+        #     {error_traceback}
+        #     """
+        #     rechecked_sql_query = await duckdb_query_judgement_agent.run(
+        #         user_prompt=user_prompt
+        #     )
+        #     print(f"user prompt:\n {user_prompt}")
+        #     print(f"Error re-checked query: {rechecked_sql_query.output.query}")
+        #     result = duckdb_sanbox(input_geometries, rechecked_sql_query.output.query)
+
+#         sql_query = """
+
+
+# """
+#         print(f"SQL query: {sql_query}")
+#         print(f"Input geometries: {input_geometries.keys()}")
+#         result = duckdb_sanbox(input_geometries, sql_query)
+
+
+        ## PostGIS Agent
+        postgis_query_result = await postgis_agent.run(
+            user_prompt=f"Search query: {query}. Geometries available in the geometries table: {input_geometries.keys()}"
         )
-        print(f"DuckDB query result: {duckdb_query_result.output.query}")
-        result = duckdb_sanbox(input_geometries, duckdb_query_result.output.query)
-        print(f"Result: {result}")
+        sql_query = postgis_query_result.output.query
+        print(f"PostGIS query result: {sql_query}")
+        for name, geometry in input_geometries.items():
+            # Convert geometry dictionary to GeoJSON string
+            geometry_json = json.dumps(geometry)
+            insert_place(name, geometry_json)
+        # result = run_postgis_query(sql_query)
 
+        # checked_query = await postgis_query_judgement_agent.run(
+        #     user_prompt=f"""
+        #     If I have geometries of {", ".join(input_geometries.keys())},
+        #     what's the PostGIS SQL query to answer the query: {query}?
 
-        return complex_geocode_result.output.queries
+        #     Modify and fix this SQL as required:
+        #     {sql_query}
+        #     """
+        # )
+        # print(f"Checked query: {checked_query.output.query}")
+        try:
+            result = run_postgis_query(sql_query)
+        except Exception as e:
+            error_traceback = traceback.format_exc()
+            print(f"Error traceback:\n {error_traceback}")
+            user_prompt = f"""
+            If I have geometries of {", ".join(input_geometries.keys())},
+            what's the PostGIS SQL query to answer the query: {query}?
+
+            Modify and fix this SQL as required:
+            {sql_query}
+
+            I'm running into the following error:
+            {error_traceback}
+            """
+            rechecked_query = await postgis_query_judgement_agent.run(
+                user_prompt=user_prompt
+            )
+            print(f"user prompt:\n {user_prompt}")
+            print(f"Error re-checked query: {rechecked_query.output.query}")
+            result = run_postgis_query(rechecked_query.output.query)
+        clear_geometries_table()
+
+        return result
 
 
 async def main():
     # query = "India north of Mumbai"
     # query = "Area within 100kms to 200kms of Paris - not nearer than 100kms but not further than 200kms"
     # query = "the great city of New York"
-    query = "France north of Paris (means latitude north of Paris)"
-    # query = "Area within 100kms Paris or Berlin"
+    # query = "France north of Paris (means latitude north of Paris)"
+    query = "Area within 100kms Paris or Berlin"
+    # query = "Northern part of India"
     await geocode_complex(query)
 
 

@@ -9,13 +9,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application
 COPY geodini/ ./geodini
 
-COPY api.py .
-
 COPY setup.py .
 RUN pip install --no-cache-dir -e .
 
-COPY geodini_kba/ /geodini_kba
-RUN pip install --no-cache-dir -e /geodini_kba
+COPY plugins/ /plugins
+RUN pip install --no-cache-dir -e /plugins/geodini_kba_example
 
 # Expose the port the app runs on
 EXPOSE 9000

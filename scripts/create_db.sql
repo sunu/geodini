@@ -51,4 +51,3 @@ PRAGMA create_fts_index('db.divisions', 'id', 'primary_name', 'common_en_name');
 -- SELECT l.id, l.primary_name, l.common_en_name, l.subtype, l.class, l.geometry
 -- FROM db.land l
 -- JOIN db.land_fts fts ON l.primary_name = fts.primary_name OR l.common_en_name = fts.common_en_name;
-
