@@ -1,9 +1,10 @@
-import duckdb
 import json
-from typing import Dict, Any
-import traceback
+from typing import Any
 
-def duckdb_sanbox(geometries: Dict[str, Any], query: str) -> Dict[str, Any]:
+import duckdb
+
+
+def duckdb_sanbox(geometries: dict[str, Any], query: str) -> dict[str, Any]:
     rows = [(name, json.dumps(geom)) for name, geom in geometries.items()]
 
     con = duckdb.connect(":memory:")
@@ -15,4 +16,4 @@ def duckdb_sanbox(geometries: Dict[str, Any], query: str) -> Dict[str, Any]:
     result = con.execute(query).fetchone()
     # print(result)
     con.close()
-    return json.loads(result[0])     
+    return json.loads(result[0])

@@ -2,15 +2,12 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Copy requirements first to leverage Docker cache
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
 # Copy the rest of the application
 COPY geodini/ ./geodini
 
-COPY setup.py .
-RUN pip install --no-cache-dir -e .
+# Use pyproject.toml for installing dependencies
+COPY pyproject.toml .
+RUN pip install --no-cache-dir .
 
 COPY plugins/ /plugins
 RUN pip install --no-cache-dir -e /plugins/geodini_kba_example

@@ -1,5 +1,4 @@
 from geodini import agents as geodini_agents
-from typing import Optional
 
 
 @geodini_agents.hookimpl
@@ -8,7 +7,7 @@ def get_geocoders(geocoders):
     return [kba_geocoder]
 
 
-def kba_geocoder(query: str, limit: Optional[int] = None):
+def kba_geocoder(query: str, limit: int | None = None):
     """Here the caller expects us to return a list."""
     data = [
         {

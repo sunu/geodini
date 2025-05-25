@@ -1,13 +1,13 @@
-from fastapi import FastAPI, Query, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from typing import Dict, Any
-import uvicorn
 import os
+from typing import Any
+
 import dotenv
+import uvicorn
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 
-from geodini.agents.simple_geocoder_agent import search_places
 from geodini.agents.complex_agents import geocode_complex
-
+from geodini.agents.simple_geocoder_agent import search_places
 
 # Load environment variables
 dotenv.load_dotenv()
@@ -42,7 +42,7 @@ async def root():
 @app.get("/search")
 async def search(
     query: str = Query(..., description="The search query string"),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Search for a place in the Overture divisions data.
 
@@ -74,7 +74,7 @@ async def search_complex(
         ...,
         description="The complex search query string containing spatial logic and operators",
     ),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Search for places using complex spatial queries.
 

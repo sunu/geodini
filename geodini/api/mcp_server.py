@@ -2,8 +2,7 @@ from mcp.server.fastmcp import FastMCP
 
 from geodini.agents.complex_agents import geocode_complex, simplify_geometry
 
-server = FastMCP('PydanticAI Server', port=9001)
-
+server = FastMCP("PydanticAI Server", port=9001)
 
 
 @server.tool()
@@ -15,5 +14,5 @@ async def geocode(query: str) -> str:
     return simplify_geometry(geometry, tolerance_m=1000)
 
 
-if __name__ == '__main__':
-    server.run(transport='sse')
+if __name__ == "__main__":
+    server.run(transport="sse")

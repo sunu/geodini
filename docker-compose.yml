@@ -6,7 +6,12 @@ services:
     volumes:
       - ./scripts:/scripts
       - ./data:/data
-    command: ["/bin/bash", "-c", "chmod +x /scripts/init-data.sh && /scripts/init-data.sh"]
+    command:
+      [
+        "/bin/bash",
+        "-c",
+        "chmod +x /scripts/init-data.sh && /scripts/init-data.sh",
+      ]
 
     # This service is for initialization, so no ports are exposed.
     # It will run, and upon successful completion, other services depending on it will start.
@@ -31,7 +36,16 @@ services:
     volumes:
       - ./geodini:/app/geodini
       - ./data:/app/data
-    command: ["uvicorn", "geodini.api.api:app", "--host", "0.0.0.0", "--port", "9000", "--reload"] 
+    command:
+      [
+        "uvicorn",
+        "geodini.api.api:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "9000",
+        "--reload",
+      ]
     depends_on:
       database:
         condition: service_healthy
@@ -57,13 +71,12 @@ services:
     volumes:
       - ./geodini:/app/geodini
       - ./data:/app/data
-    command: ["python", "geodini/api/mcp_server.py"] 
+    command: ["python", "geodini/api/mcp_server.py"]
     depends_on:
       database:
         condition: service_healthy
       init-data:
         condition: service_completed_successfully
-      
 
   frontend:
     build:
@@ -77,7 +90,7 @@ services:
       - GEODINI_API_URL=http://localhost:29000
     depends_on:
       - api
-  
+
   database:
     image: postgis/postgis:17-3.4
     ports:

@@ -12,7 +12,7 @@ services:
     env_file:
       - .env
     volumes:
-    #   - ./geodini:/app/geodini
+      #   - ./geodini:/app/geodini
       - ./data:/app/data
     networks:
       - caddy
@@ -36,7 +36,7 @@ services:
       caddy.reverse_proxy: "{{upstreams 80}}"
     depends_on:
       - api-prod
-  
+
   # database:
   #   image: postgis/postgis:17-3.4
   #   ports:

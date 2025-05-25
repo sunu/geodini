@@ -1,8 +1,9 @@
-import os
-from typing import Dict, Any, Optional, List
-from pprint import pprint
-import duckdb
 import json
+import os
+from pprint import pprint
+from typing import Any
+
+import duckdb
 
 # get data path from current file
 DATA_PATH = os.environ.get(
@@ -33,7 +34,7 @@ SUBTYPES = {
 }
 
 
-def geocode(query: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+def geocode(query: str, limit: int | None = None) -> list[dict[str, Any]]:
     conn = duckdb.connect(DATA_PATH)
     conn.execute("INSTALL spatial;")
     conn.execute("LOAD spatial;")
@@ -89,7 +90,7 @@ def build_query(name_condition: str, has_country_filter: bool, has_limit: bool) 
             FROM all_geometries
             WHERE {where_clause}
         )
-        SELECT 
+        SELECT
             id,
             matched_name AS name,
             name_type,
@@ -99,7 +100,7 @@ def build_query(name_condition: str, has_country_filter: bool, has_limit: bool) 
             country,
             ST_AsGeoJSON(ST_GeomFromWKB(geometry)) as geometry
         FROM matched_results
-        ORDER BY 
+        ORDER BY
             CASE WHEN LOWER(matched_name) = LOWER(?) THEN 0 ELSE 1 END,
             CASE name_type
                 WHEN 'primary' THEN 0

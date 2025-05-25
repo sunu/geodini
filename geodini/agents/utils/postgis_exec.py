@@ -1,6 +1,7 @@
-from dataclasses import dataclass
 import json
 import os
+from dataclasses import dataclass
+
 import psycopg2
 from pydantic_ai import Agent
 
@@ -17,8 +18,9 @@ def get_postgis_connection():
         database=os.getenv("POSTGRES_DB") or "geodini",
         user="postgres",
         port=os.getenv("POSTGRES_PORT") or 5432,
-        password=os.getenv("POSTGRES_PASSWORD")
+        password=os.getenv("POSTGRES_PASSWORD"),
     )
+
 
 geometry_table_schema = """
 CREATE TABLE IF NOT EXISTS geometries (
@@ -46,7 +48,10 @@ def insert_place(name: str, geometry: str):
     conn = get_postgis_connection()
     try:
         with conn.cursor() as cur:
-            cur.execute("INSERT INTO geometries (name, geom, geometry) VALUES (%s, %s, %s)", (name, geometry, geometry))
+            cur.execute(
+                "INSERT INTO geometries (name, geom, geometry) VALUES (%s, %s, %s)",
+                (name, geometry, geometry),
+            )
         conn.commit()
     finally:
         conn.close()
@@ -85,6 +90,7 @@ def delete_geometries_table():
     finally:
         conn.close()
 
+
 postgis_agent = Agent(
     "openai:gpt-4o",
     output_type=PostGISResult,
@@ -122,7 +128,7 @@ postgis_agent = Agent(
     - Area within 100kms of USA and Canada borders
         - Border is the intersection of USA and Canada geometries
         - 100kms buffer around the border
-    """
+    """,
 )
 
 
@@ -146,7 +152,7 @@ postgis_query_judgement_agent = Agent(
     If the SQL query is correct, return the SQL query as is.
     If the SQL query is incorrect, you need to return the correct SQL query.
     You need to return the SQL query only, no other text.
-    """
+    """,
 )
 
 if __name__ == "__main__":

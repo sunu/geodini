@@ -1,15 +1,11 @@
+import time
 from dataclasses import dataclass
-from typing import List, Optional, Dict, Any
+from pprint import pprint
+
+import pluggy
 from pydantic_ai import Agent
 
-# from geodini.tools.geocoder import geocode
-from pprint import pprint
-import time
-import pluggy
-
-from geodini import lib
-from geodini.agents.utils import geocoder
-from geodini import hookspecs
+from geodini import hookspecs, lib
 
 
 def get_plugin_manager():
@@ -23,7 +19,7 @@ def get_plugin_manager():
 @dataclass
 class Place:
     id: str
-    hierarchy: List[str]
+    hierarchy: list[str]
     name: str
     country: str
     subtype: str
@@ -32,13 +28,13 @@ class Place:
 @dataclass
 class RerankingContext:
     query: str
-    results: List[Place]
+    results: list[Place]
 
 
 @dataclass
 class RerankingResult:
     most_probable: str
-    next_probable: List[str]
+    next_probable: list[str]
 
 
 rerank_agent = Agent(
@@ -71,7 +67,7 @@ class SearchContext:
 @dataclass
 class RephrasedQuery:
     query: str
-    country_code: Optional[str]
+    country_code: str | None
     exact: bool
 
 
@@ -94,7 +90,7 @@ rephrase_agent = Agent(
 )
 
 
-async def search_places(query: str) -> List[Place]:
+async def search_places(query: str) -> list[Place]:
     print(f"Starting search for {query}")
     pm = get_plugin_manager()
     geocoders = pm.hook.get_geocoders(geocoders=list())
@@ -143,19 +139,6 @@ async def search_places(query: str) -> List[Place]:
         )
 
     if places:
-        # place_data_lines = []
-        # for place in results:
-        #     hierarchy_summary = (
-        #         " > ".join(place["hierarchy"]) if place["hierarchy"] else ""
-        #     )
-        #     place_data_lines.append(
-        #         f"{place['id']}, {place['name']}, {place['country']}, {hierarchy_summary}, {place['subtype']}"
-        #     )
-        # user_prompt = f"""
-        # Search query: "{query}"
-        # results (format: id, name, country, hierarchy, subtype):
-        # {chr(10).join(place_data_lines)}
-        # """
         user_prompt = f"""
         Rerank the following results based on the search query:
         search query: {query},

@@ -1,13 +1,14 @@
-import pluggy
+from collections.abc import Callable
+from typing import Any
 
-from typing import List, Callable, Optional, Dict, Any
+import pluggy
 
 hookspec = pluggy.HookspecMarker("geodini")
 
 
 @hookspec
 def get_geocoders(
-    geocoders: List[Callable[[str, Optional[int]], List[Dict[str, Any]]]],
-) -> List[Callable[[str, Optional[int]], List[Dict[str, Any]]]]:
+    geocoders: list[Callable[[str, int | None], list[dict[str, Any]]]],
+) -> list[Callable[[str, int | None], list[dict[str, Any]]]]:
     """Get a list of geocoders"""
     pass

@@ -1,0 +1,28 @@
+[project]
+name = "geodini"
+version = "0.1.0"
+description = "A natural language geocoding API."
+authors = []
+license = "MIT"
+dependencies = [
+  "dotenv",
+  "duckdb>=0.9.0",
+  "fastapi>=0.104.0",
+  "numpy>=1.25.0",
+  "openai>=1.0.0",
+  "pandas>=2.0.0",
+  "pluggy>=1.5.0",
+  "psycopg2-binary>=2.9.10",
+  "pydantic-ai>=0.1.0",
+  "pyproj>=3.0.0",
+  "python-dotenv>=1.0.0",
+  "rich>=13.0.0",
+  "shapely>=2.0.0",
+  "typer>=0.9.0",
+  "uvicorn>=0.23.0"
+]
+requires-python = ">=3.10"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
