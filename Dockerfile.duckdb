@@ -7,3 +7,6 @@ RUN apt-get update && apt-get install -y wget unzip && \
     chmod +x /usr/local/bin/duckdb && \
     rm -rf /tmp/duckdb && \
     apt-get remove --purge -y wget unzip && apt-get autoremove -y && apt-get clean;
+
+# copy the scripts
+COPY scripts/ /scripts/
