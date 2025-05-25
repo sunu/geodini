@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from geodini.agents.complex_agents import geocode_complex
 from geodini.agents.simple_geocoder_agent import search_places
+from geodini.agents.utils.postgis_exec import get_postgis_connection
 
 # Load environment variables
 dotenv.load_dotenv()
@@ -112,6 +113,23 @@ async def search_complex(
 @app.get("/health")
 async def health_check():
     """Health check endpoint to verify the API is running."""
+    try:
+        # Test PostGIS connection
+        conn = get_postgis_connection()
+        if conn is None:
+            raise Exception("PostGIS connection failed")
+        # execute a simple query to check the connection
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1")
+            result = cur.fetchone()
+            if result[0] != 1:
+                raise Exception("PostGIS failed to execute test query")
+    except Exception as e:
+        print(f"Health check failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Health check failed: {str(e)}")
+    finally:
+        # Close the connection
+        conn.close()
     return {"status": "healthy"}
 
 
