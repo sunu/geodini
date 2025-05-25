@@ -41,4 +41,3 @@ AND names IS NOT NULL;
 
 -- Create FTS index on 'all_geometries' table for fast name search
 -- PRAGMA create_fts_index('db.all_geometries', 'id', 'primary_name', 'common_en_name');
-

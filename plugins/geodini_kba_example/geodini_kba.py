@@ -1,14 +1,13 @@
-from geodini import tools as geodini_tools
-from typing import Optional
+from geodini import agents as geodini_agents
 
 
-@geodini_tools.hookimpl
+@geodini_agents.hookimpl
 def get_geocoders(geocoders):
     """Here the caller expects us to return a list."""
     return [kba_geocoder]
 
 
-def kba_geocoder(query: str, limit: Optional[int] = None):
+def kba_geocoder(query: str, limit: int | None = None):
     """Here the caller expects us to return a list."""
     data = [
         {

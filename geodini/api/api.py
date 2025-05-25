@@ -1,13 +1,13 @@
-from fastapi import FastAPI, Query, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from typing import Dict, Any
-import uvicorn
 import os
+from typing import Any
+
 import dotenv
-import pluggy
+import uvicorn
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 
-from geodini.tools.agents import search_places
-
+from geodini.agents.complex_agents import geocode_complex
+from geodini.agents.simple_geocoder_agent import search_places
 
 # Load environment variables
 dotenv.load_dotenv()
@@ -42,7 +42,7 @@ async def root():
 @app.get("/search")
 async def search(
     query: str = Query(..., description="The search query string"),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Search for a place in the Overture divisions data.
 
@@ -68,6 +68,47 @@ async def search(
         )
 
 
+@app.get("/search_complex")
+async def search_complex(
+    query: str = Query(
+        ...,
+        description="The complex search query string containing spatial logic and operators",
+    ),
+) -> dict[str, Any]:
+    """
+    Search for places using complex spatial queries.
+
+    Handles queries containing spatial logic and operators like:
+    - "India and Sri Lanka"
+    - "Within 100km of Mumbai"
+    - "Within 10kms of France and Spain border"
+
+    Returns search results based on the provided complex query.
+    """
+    try:
+        print(f"Searching with complex query: {query}")
+
+        # Get result from complex search tool
+        result = await geocode_complex(query)
+
+        return {
+            "query": query,
+            "result": {
+                "geometry": result,
+                "country": None,
+            },
+        }
+
+    except Exception as e:
+        print(f"Error processing complex search query: {str(e)}")
+        import traceback
+
+        print(traceback.format_exc())
+        raise HTTPException(
+            status_code=500, detail=f"Error processing complex search query: {str(e)}"
+        )
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint to verify the API is running."""
@@ -79,4 +120,4 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 9000))
 
     # Run the FastAPI app with uvicorn
-    uvicorn.run("api:app", host="0.0.0.0", port=port, reload=True)
+    uvicorn.run("geodini.api.api:app", host="0.0.0.0", port=port, reload=True)
