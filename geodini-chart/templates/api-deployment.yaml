@@ -1,0 +1,111 @@
+apiVersion: {{ include "geodini.deployment.apiVersion" . }}
+kind: Deployment
+metadata:
+  name: {{ include "geodini.fullname" . }}-api
+  labels:
+    {{- include "geodini.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "geodini.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      labels:
+        {{- include "geodini.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: api
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "geodini.serviceAccountName" . }}
+      securityContext:
+        {}
+      initContainers:
+        - name: init-duckdb
+          image: "{{ .Values.api.initContainer.image.repository }}:{{ .Values.api.initContainer.image.tag }}"
+          imagePullPolicy: {{ .Values.api.initContainer.image.pullPolicy }}
+          command: {{ toJson .Values.api.initContainer.command }}
+          volumeMounts:
+            - name: app-data 
+              mountPath: {{ .Values.api.initContainer.volumeMounts.data.mountPath | default "/data" }}
+            {{- if .Values.api.initContainer.volumeMounts.scripts }}
+            - name: scripts
+              mountPath: {{ .Values.api.initContainer.volumeMounts.scripts.mountPath | default "/scripts" }}
+            {{- end }}
+          resources:
+            {}
+      containers:
+        - name: api
+          securityContext:
+            {}
+          image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}"
+          imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+          command:
+            - "uvicorn"
+            - "geodini.api.api:app"
+            - "--host"
+            - "0.0.0.0"
+            - "--port"
+            - {{ .Values.api.port | quote }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.api.port }}
+              protocol: TCP
+          env:
+            - name: PORT
+              value: {{ .Values.api.port | quote }}
+            - name: POSTGRES_HOST
+              value: {{ .Values.api.env.POSTGRES_HOST }}
+            - name: POSTGRES_PORT
+              value: {{ .Values.api.env.POSTGRES_PORT | quote }}
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "geodini.fullname" . }}-geodini-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "geodini.fullname" . }}-geodini-secret
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "geodini.fullname" . }}-geodini-secret
+                  key: POSTGRES_DB
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "geodini.fullname" . }}-geodini-secret
+                  key: OPENAI_API_KEY
+            - name: DATA_PATH
+              value: {{ .Values.api.env.DATA_PATH }}
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 45 
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15 
+            periodSeconds: 10
+          resources:
+            {}
+          volumeMounts:
+            - name: app-data 
+              mountPath: {{ .Values.appDataPersistence.mountPath }}
+      volumes:
+        - name: app-data 
+          {{- if .Values.appDataPersistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "geodini.fullname" . }}-app-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}

@@ -1,0 +1,98 @@
+# Default values for geodini-chart.
+replicaCount: 1
+
+api:
+  image:
+    repository: ghcr.io/sunu/geodini/api
+    pullPolicy: IfNotPresent
+    tag: "latest"
+  port: 9000
+  service:
+    type: ClusterIP
+    port: 9000
+  env:
+    PORT: "9000"
+    POSTGRES_HOST: "{{ include \"geodini.fullname\" . }}-postgres" # Service name of our postgres
+    POSTGRES_PORT: "5432"
+    POSTGRES_USER: "postgres" # Default, can be overridden
+    # POSTGRES_PASSWORD will be taken from a secret
+    POSTGRES_DB: "postgres"   # Default, can be overridden
+    DATA_PATH: "/data/overture-unified.duckdb"
+  initContainer:
+    image:
+      repository: ghcr.io/sunu/geodini/duckdb-init
+      pullPolicy: IfNotPresent
+      tag: "latest"
+    command: ["/bin/bash", "-c", "chmod +x /scripts/init-data.sh && /scripts/init-data.sh"]
+    volumeMounts:
+      - name: app-data # Renamed for clarity
+        mountPath: /data
+
+# Persistent Volume Claim for application data (DuckDB)
+appDataPersistence:
+  enabled: true
+  storageClassName: "" # Or your specific storage class
+  accessModes:
+    - ReadWriteOnce
+  size: 50Gi # Adjust as needed
+  mountPath: /data # Mount path for the PVC in the API initContainer and container
+
+# PostgreSQL/PostGIS configuration
+postgres:
+  enabled: true
+  image:
+    repository: postgis/postgis
+    tag: "16-3.4" # Using 16 as 17 is not yet in postgis/postgis official images
+    pullPolicy: IfNotPresent
+  port: 5432
+  service:
+    type: ClusterIP # Internal service
+    port: 5432
+  # user, password, database configured in 'secrets'
+  persistence:
+    enabled: true
+    storageClassName: "" # Or your specific storage class
+    accessModes:
+      - ReadWriteOnce
+    size: 10Gi # Adjust as needed
+
+ingress:
+  enabled: false
+  className: "nginx" # Or your ingress controller's class name
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # cert-manager.io/cluster-issuer: letsencrypt-prod # Example for cert-manager
+
+  # API Ingress Configuration
+  apiHost: "api.geodini.local" # Placeholder, e.g., api.yourdomain.com
+  # apiTlsSecretName: "geodini-api-tls"       # Optional: if TLS is enabled for API
+
+  # Common TLS configuration.
+  # You can define one or more secrets.
+  # If you have separate certs for frontendHost and apiHost, list them here.
+  # If you have a wildcard cert covering both, one entry is sufficient.
+  tls: []
+  # Example for separate certs:
+  # - secretName: geodini-api-tls
+  #   hosts:
+  #     - api.geodini.local # Must match ingress.apiHost
+  # Example for a wildcard cert:
+  # - secretName: geodini-wildcard-tls
+  #   hosts:
+  #     - api.geodini.local
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# Centralized secrets
+secrets:
+  POSTGRES_USER: "postgres"
+  POSTGRES_PASSWORD: "changeme" # IMPORTANT: Change for production
+  POSTGRES_DB: "postgres"
+  OPENAI_API_KEY: "YOUR_OPENAI_API_KEY_HERE" # IMPORTANT: Change for production

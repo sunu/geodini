@@ -1,0 +1,88 @@
+{{- if .Values.postgres.enabled }}
+apiVersion: {{ include "geodini.deployment.apiVersion" . }}
+kind: Deployment
+metadata:
+  name: {{ include "geodini.fullname" . }}-postgres
+  labels:
+    {{- include "geodini.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  replicas: 1 # PostgreSQL typically runs as a single replica with PVC
+  selector:
+    matchLabels:
+      {{- include "geodini.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: postgres
+  template:
+    metadata:
+      labels:
+        {{- include "geodini.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: postgres
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "geodini.serviceAccountName" . }}
+      securityContext:
+        fsGroup: 26 # PostGIS image often runs as postgres user (UID 26)
+        runAsUser: 26
+      containers:
+        - name: postgres
+          image: "{{ .Values.postgres.image.repository }}:{{ .Values.postgres.image.tag }}"
+          imagePullPolicy: {{ .Values.postgres.image.pullPolicy }}
+          ports:
+            - name: postgres
+              containerPort: {{ .Values.postgres.port }}
+              protocol: TCP
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "geodini.fullname" . }}-postgres-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "geodini.fullname" . }}-postgres-secret
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB  # Or POSTGRES_INITDB_ARGS for more complex init
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "geodini.fullname" . }}-postgres-secret
+                  key: POSTGRES_DB
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata # Standard for postgres images
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - $(POSTGRES_USER) 
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - $(POSTGRES_USER)
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            {} # Define resources
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: postgres-data
+          {{- if .Values.postgres.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "geodini.fullname" . }}-postgres-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+{{- end }}
