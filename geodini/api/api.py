@@ -128,8 +128,8 @@ async def health_check():
         print(f"Health check failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Health check failed: {str(e)}")
     finally:
-        # Close the connection
-        conn.close()
+        if "conn" in locals() and conn is not None:
+            conn.close()
     return {"status": "healthy"}
 
 
