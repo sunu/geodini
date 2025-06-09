@@ -1,6 +1,10 @@
 -- Attach the database
 ATTACH 'data/overture-unified.duckdb' AS db;
 
+SET preserve_insertion_order=false;
+PRAGMA memory_limit='2GB';
+PRAGMA temp_directory='/tmp/duckdb_temp';
+
 -- Create and populate the 'all_geometries' table
 CREATE OR REPLACE TABLE db.all_geometries AS 
 -- Division data
