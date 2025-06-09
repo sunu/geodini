@@ -10,10 +10,12 @@ else
     echo 'Overture data already exists.'
 fi
 echo 'Creating DuckDB database...' &&
-# check if the file exists
-if [ ! -f /data/overture-unified.duckdb ]; then
-    duckdb /data/overture-unified.duckdb -c '.read /scripts/create_unified_db.sql' &&
-    echo 'DuckDB database creation complete.'
-else
-    echo 'DuckDB database already exists.'
+
+if [ -f /data/overture-unified.duckdb ]; then
+    echo 'Deleting existing DuckDB database...' &&
+    rm /data/overture-unified.duckdb
 fi
+
+duckdb /data/overture-unified.duckdb -c '.read /scripts/create_unified_db.sql' &&
+echo 'DuckDB database creation complete.'
+
