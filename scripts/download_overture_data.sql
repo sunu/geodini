@@ -3,11 +3,6 @@ INSTALL httpfs;
 LOAD spatial;
 LOAD httpfs; 
 
-SET preserve_insertion_order=false;
-SET threads=2;
-PRAGMA memory_limit='2GB';
-PRAGMA temp_directory='/tmp/duckdb_temp';
-
 -- Access the data on AWS
 SET s3_region='us-west-2';
 
