@@ -1,6 +1,7 @@
 import time
 from dataclasses import dataclass
 from pprint import pprint
+from concurrent.futures import ThreadPoolExecutor
 
 import pluggy
 from pydantic_ai import Agent
@@ -39,7 +40,7 @@ class RerankingResult:
 
 rerank_agent = Agent(
     # 4o-mini is smarter than 3.5-turbo. And does better in edge cases.
-    "openai:gpt-4o-mini",
+    "openai:gpt-4.1-nano",
     output_type=RerankingResult,
     deps_type=RerankingContext,
     system_prompt="""
@@ -72,7 +73,7 @@ class RephrasedQuery:
 
 
 rephrase_agent = Agent(
-    "openai:gpt-3.5-turbo",
+    "openai:gpt-4.1-nano",
     output_type=RephrasedQuery,
     deps_type=SearchContext,
     system_prompt="""
@@ -108,9 +109,14 @@ async def search_places(query: str) -> list[Place]:
     geocoding_start_time = time.time()
     results = []
     for geocoder_group in geocoders:
-        for geocoder in geocoder_group:
-            temp_results = geocoder(rephrased_query.output.query, limit=20)
-            results.extend(temp_results)
+        # Execute in ThreadPoolExecutor to avoid blocking the main thread
+        with ThreadPoolExecutor() as executor:
+            futures = [
+                executor.submit(geocoder, rephrased_query.output.query, limit=20)
+                for geocoder in geocoder_group
+            ]
+            for future in futures:
+                results.extend(future.result())
     # results = geocoder.geocode(rephrased_query.output.query, limit=20)
     # pprint(results)
     geocoding_time = time.time() - geocoding_start_time
