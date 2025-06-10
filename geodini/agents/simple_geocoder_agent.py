@@ -40,7 +40,7 @@ class RerankingResult:
 
 rerank_agent = Agent(
     # 4o-mini is smarter than 3.5-turbo. And does better in edge cases.
-    "openai:gpt-4.1-nano",
+    "openai:gpt-4.1-mini",
     output_type=RerankingResult,
     deps_type=RerankingContext,
     system_prompt="""
@@ -73,7 +73,7 @@ class RephrasedQuery:
 
 
 rephrase_agent = Agent(
-    "openai:gpt-4.1-nano",
+    "openai:gpt-4.1-mini",
     output_type=RephrasedQuery,
     deps_type=SearchContext,
     system_prompt="""
@@ -82,7 +82,7 @@ rephrase_agent = Agent(
         Extract:
         1. The main search term (place name) - for example, "the city of San Francisco" should return "San Francisco", "New York City" should return "New York", "Paris, TX" should return "Paris",
             "Sahara Desert" should return "Sahara", "The Himalayan mountain range" should return "Himalaya", "The Amazon rainforest" should return "Amazon".
-            If the query is a shortened name, return the full name - for example, "usa" should return "United States" and so on.
+            If the query is a shortened name, return the full name - for example, "usa" or "The US" should return "United States" and so on.
         2. Country code (ISO 2-letter code) if a specific country is mentioned
         3. Whether an exact match is requested (e.g., "exactly", "precisely")
         
