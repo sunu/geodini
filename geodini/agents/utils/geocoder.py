@@ -14,38 +14,18 @@ DATA_PATH = os.environ.get(
 )
 
 
-SUBTYPES = {
-    "DIVISION": [
-        "country",
-        "dependency",
-        "region",
-        "county",
-        "localadmin",
-        "locality",
-        "macrohood",
-        "neighborhood",
-        "microhood",
-    ],
-    "LAND": [
-        "sand",
-        "wetland",
-        "desert",
-    ],
-}
-
-
-def geocode(query: str, limit: int | None = None) -> list[dict[str, Any]]:
+def geocode(query: str, limit: int | None = 20) -> list[dict[str, Any]]:
     conn = duckdb.connect(DATA_PATH)
     conn.execute("INSTALL spatial;")
     conn.execute("LOAD spatial;")
-    name_condition = (
-        f"(common_en_name ILIKE '%{query}%' OR primary_name ILIKE '%{query}%')"
-    )
-    sql_query = build_query(name_condition, False, (limit is not None))
-    params = [query, f"%{query}%", query, f"%{query}%", query]
+    # Reduce memory usage
+    conn.execute("SET preserve_insertion_order = false")
+    conn.execute("PRAGMA memory_limit='1GB'")
+    conn.execute("PRAGMA temp_directory='/tmp/duckdb_temp'")
+    sql_query = build_query(False, (limit is not None))
+    params = [query] * 2
     if limit is not None:
         params.append(limit)
-    # print(sql_query)
     result = conn.execute(sql_query, params).fetch_df()
     conn.close()
     # convert geometry to geojson
@@ -55,82 +35,61 @@ def geocode(query: str, limit: int | None = None) -> list[dict[str, Any]]:
     return result.to_dict(orient="records")
 
 
-def build_query(name_condition: str, has_country_filter: bool, has_limit: bool) -> str:
+def build_query(has_country_filter: bool, has_limit: bool) -> str:
     """Build SQL query for searching overture unified data"""
 
-    # only include division results for now
-    where_clause = "source_type = 'division'"
-    # geometry should be not null
-    where_clause += " AND geometry IS NOT NULL"
-
-    where_clause += f" AND {name_condition}"
+    where_clauses = [
+        "source_type = 'division'",
+        "geometry IS NOT NULL",
+        "(primary_similarity > 0.8 OR common_similarity > 0.8)",
+    ]
 
     # Add country code filter if provided
     if has_country_filter:
-        where_clause += " AND LOWER(country) = LOWER(?)"
+        where_clauses.append("LOWER(country) = LOWER(?)")
 
-    # Simplified query that takes advantage of our views
+    where_clause_str = " AND ".join(where_clauses)
+
     sql_query = f"""
-        WITH matched_results AS (
+        WITH with_similarity AS (
             SELECT 
-                id,
-                CASE 
-                    WHEN LOWER(primary_name) = LOWER(?) OR primary_name ILIKE ? THEN primary_name
-                    ELSE common_en_name
-                END AS matched_name,
-                CASE 
-                    WHEN LOWER(primary_name) = LOWER(?) OR primary_name ILIKE ? THEN 'primary'
-                    ELSE 'common_en'
-                END AS name_type,
-                subtype,
-                source_type,
-                hierarchies,
-                country,
-                geometry
+                *,
+                jaro_winkler_similarity(LOWER(primary_name), LOWER(?)) as primary_similarity,
+                jaro_winkler_similarity(LOWER(common_en_name), LOWER(?)) as common_similarity
             FROM all_geometries
-            WHERE {where_clause}
         )
         SELECT
             id,
-            matched_name AS name,
-            name_type,
+            COALESCE(common_en_name, primary_name) as name,
+            CASE
+                WHEN primary_similarity >= common_similarity THEN 'primary'
+                ELSE 'common_en'
+            END as name_type,
             subtype,
             source_type,
             hierarchies,
             country,
+            GREATEST(primary_similarity, common_similarity) as similarity,
             ST_AsGeoJSON(ST_GeomFromWKB(geometry)) as geometry
-        FROM matched_results
-        ORDER BY
-            CASE WHEN LOWER(matched_name) = LOWER(?) THEN 0 ELSE 1 END,
-            CASE name_type
-                WHEN 'primary' THEN 0
-                ELSE 1
-            END,
-            CASE subtype
-                WHEN 'country' THEN 1
-                WHEN 'dependency' THEN 2
-                WHEN 'region' THEN 3
-                WHEN 'county' THEN 4
-                WHEN 'localadmin' THEN 5
-                WHEN 'locality' THEN 6
-                WHEN 'macrohood' THEN 7
-                WHEN 'neighborhood' THEN 8
-                WHEN 'microhood' THEN 9
-                WHEN 'sand' THEN 13
-                WHEN 'wetland' THEN 13
-                WHEN 'desert' THEN 13
-                ELSE 13
-            END,
-            matched_name
+        FROM with_similarity
+        WHERE {where_clause_str}
+        ORDER BY similarity DESC
     """
 
     # Add LIMIT clause only if limit is specified
     if has_limit:
         sql_query += " LIMIT ?"
 
+    # print(sql_query)
+
     return sql_query
 
 
 if __name__ == "__main__":
-    pprint(geocode("new york"))
-    pprint(geocode("Amazon"))
+    import time
+
+    start_time = time.time()
+    geocode("new york", limit=20)
+    end_time = time.time()
+    print(f"Time taken: {end_time - start_time} seconds")
+    # pprint(geocode("Amazon"))
