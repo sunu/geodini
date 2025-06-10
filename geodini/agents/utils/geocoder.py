@@ -15,7 +15,7 @@ DATA_PATH = os.environ.get(
 
 
 def geocode(query: str, limit: int | None = 20) -> list[dict[str, Any]]:
-    conn = duckdb.connect(DATA_PATH)
+    conn = duckdb.connect(DATA_PATH, read_only=True)
     conn.execute("INSTALL spatial;")
     conn.execute("LOAD spatial;")
     # Reduce memory usage
