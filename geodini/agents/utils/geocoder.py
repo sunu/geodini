@@ -15,6 +15,7 @@ DATA_PATH = os.environ.get(
 
 
 def geocode(query: str, limit: int | None = 20) -> list[dict[str, Any]]:
+    start_time = time.time()
     conn = duckdb.connect(DATA_PATH, read_only=True)
     conn.execute("INSTALL spatial;")
     conn.execute("LOAD spatial;")
@@ -22,16 +23,26 @@ def geocode(query: str, limit: int | None = 20) -> list[dict[str, Any]]:
     conn.execute("SET preserve_insertion_order = false")
     conn.execute("PRAGMA memory_limit='3GB'")
     conn.execute("PRAGMA temp_directory='/tmp/duckdb_temp'")
+    connect_time = time.time() - start_time
+    print(f"Duckdb connection time: {connect_time:.2f} seconds")
+    query_start_time = time.time()
     sql_query = build_query(False, (limit is not None))
     params = [query] * 2
     if limit is not None:
         params.append(limit)
     result = conn.execute(sql_query, params).fetch_df()
     conn.close()
+    query_time = time.time() - query_start_time
+    print(f"Duckdb query execution time: {query_time:.2f} seconds")
+    start_conversion_time = time.time()
     # convert geometry to geojson
     result["geometry"] = result["geometry"].apply(
         lambda x: json.loads(x) if x is not None else None
     )
+    conversion_time = time.time() - start_conversion_time
+    print(f"Geometry conversion time: {conversion_time:.2f} seconds")
+    total_time = time.time() - start_time
+    print(f"Total query execution time: {total_time:.2f} seconds")
     return result.to_dict(orient="records")
 
 
