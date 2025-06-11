@@ -2,6 +2,7 @@ import json
 import os
 from pprint import pprint
 from typing import Any
+import time
 
 import duckdb
 
