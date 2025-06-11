@@ -20,7 +20,7 @@ def geocode(query: str, limit: int | None = 20) -> list[dict[str, Any]]:
     conn.execute("LOAD spatial;")
     # Reduce memory usage
     conn.execute("SET preserve_insertion_order = false")
-    conn.execute("PRAGMA memory_limit='1GB'")
+    conn.execute("PRAGMA memory_limit='3GB'")
     conn.execute("PRAGMA temp_directory='/tmp/duckdb_temp'")
     sql_query = build_query(False, (limit is not None))
     params = [query] * 2
