@@ -1,11 +1,12 @@
-apiVersion: {{ include "geodini.deployment.apiVersion" . }}
-kind: Deployment
+apiVersion: apps/v1
+kind: StatefulSet
 metadata:
   name: {{ include "geodini.fullname" . }}-api
   labels:
     {{- include "geodini.labels" . | nindent 4 }}
     app.kubernetes.io/component: api
 spec:
+  serviceName: {{ include "geodini.fullname" . }}-api-headless # For stable pod identities
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
@@ -24,20 +25,28 @@ spec:
       serviceAccountName: {{ include "geodini.serviceAccountName" . }}
       securityContext:
         {}
+      volumes: # Add volumes section
+        - name: duckdb-temp-storage
+          emptyDir: {}
+        - name: data-dir
+          emptyDir: {} # This is for the init container to use
       initContainers:
         - name: init-duckdb
           image: "{{ .Values.api.initContainer.image.repository }}:{{ .Values.api.initContainer.image.tag }}"
           imagePullPolicy: {{ .Values.api.initContainer.image.pullPolicy }}
           command: {{ toJson .Values.api.initContainer.command }}
-          volumeMounts:
-            - name: app-data 
-              mountPath: {{ .Values.api.initContainer.volumeMounts.data.mountPath | default "/data" }}
-            {{- if .Values.api.initContainer.volumeMounts.scripts }}
-            - name: scripts
-              mountPath: {{ .Values.api.initContainer.volumeMounts.scripts.mountPath | default "/scripts" }}
+          env:
+            {{- if .Values.api.initContainer.forceRecreateData }}
+            - name: FORCE_RECREATE
+              value: "true"
             {{- end }}
+          volumeMounts:
+            - name: data-dir
+              mountPath: "/data"
+            - name: duckdb-temp-storage # Mount the emptyDir to /tmp
+              mountPath: /tmp
           resources:
-            {}
+            {{- toYaml .Values.api.initContainer.resources | nindent 12 }}
       containers:
         - name: api
           securityContext:
@@ -51,6 +60,8 @@ spec:
             - "0.0.0.0"
             - "--port"
             - {{ .Values.api.port | quote }}
+            - "--workers"
+            - "4"
           ports:
             - name: http
               containerPort: {{ .Values.api.port }}
@@ -59,7 +70,7 @@ spec:
             - name: PORT
               value: {{ .Values.api.port | quote }}
             - name: POSTGRES_HOST
-              value: {{ .Values.api.env.POSTGRES_HOST }}
+              value: {{ .Values.api.env.POSTGRES_HOST | quote }}
             - name: POSTGRES_PORT
               value: {{ .Values.api.env.POSTGRES_PORT | quote }}
             - name: POSTGRES_USER
@@ -83,29 +94,44 @@ spec:
                   name: {{ include "geodini.fullname" . }}-geodini-secret
                   key: OPENAI_API_KEY
             - name: DATA_PATH
-              value: {{ .Values.api.env.DATA_PATH }}
+              value: {{ .Values.api.env.DATA_PATH | quote }}
           livenessProbe:
             httpGet:
               path: /
               port: http
-            initialDelaySeconds: 45 
-            periodSeconds: 10
+            initialDelaySeconds: 45
+            periodSeconds: 20
           readinessProbe:
             httpGet:
               path: /health
               port: http
-            initialDelaySeconds: 15 
-            periodSeconds: 10
+            initialDelaySeconds: 45
+            periodSeconds: 20
           resources:
-            {}
+            {{- toYaml .Values.api.resources | nindent 12 }}
           volumeMounts:
-            - name: app-data 
-              mountPath: {{ .Values.appDataPersistence.mountPath }}
-      volumes:
-        - name: app-data 
-          {{- if .Values.appDataPersistence.enabled }}
-          persistentVolumeClaim:
-            claimName: {{ include "geodini.fullname" . }}-app-data
-          {{- else }}
-          emptyDir: {}
-          {{- end }}
+            - name: data-dir
+              mountPath: "/data"
+            # - name: geodini-temp
+            #   mountPath: /tmp
+  volumeClaimTemplates:
+    - metadata:
+        name: app-data
+      spec:
+        accessModes: {{ .Values.api.persistence.accessModes | toYaml | nindent 10 }}
+        resources:
+          requests:
+            storage: {{ .Values.api.persistence.size | quote }}
+        {{- if .Values.api.persistence.storageClassName }}
+        storageClassName: {{ .Values.api.persistence.storageClassName | quote }}
+        {{- end }}
+    - metadata:
+        name: geodini-temp
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 20Gi # temporary storage for duckdb. Needs to be fast
+        {{- if .Values.api.persistence.storageClassName }}
+        storageClassName: {{ .Values.api.persistence.storageClassName | quote }}
+        {{- end }}

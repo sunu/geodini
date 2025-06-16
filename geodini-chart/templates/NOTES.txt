@@ -34,15 +34,8 @@ To access your application, you might need to set up port-forwarding:
 And the API at http://localhost:{{ $apiServicePort }}
 {{- end }}
 
-{{- if .Values.appDataPersistence.enabled }}
-Application data (DuckDB) is being persisted.
-{{- end }}
-{{- if and .Values.postgres.enabled .Values.postgres.persistence.enabled }}
-PostgreSQL data is being persisted.
-{{- end }}
-
 {{- if .Values.postgres.enabled }}
-The PostgreSQL password is set in the '{{ $fullName }}-postgres-secret' secret.
+The PostgreSQL password is set in the '{{ $fullName }}-geodini-secret' secret.
 Default user: {{ .Values.postgres.user }}
 Default database: {{ .Values.postgres.database }}
 {{- end }}

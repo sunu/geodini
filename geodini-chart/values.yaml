@@ -6,13 +6,24 @@ api:
     repository: ghcr.io/sunu/geodini/api
     pullPolicy: IfNotPresent
     tag: "latest"
+  resources:
+    requests:
+      cpu: "3.5"
+      memory: "6Gi"
+    limits:
+      memory: "8Gi"
+  persistence:
+    # storageClassName: "your-storage-class" # Use a high-performance storage class if available for best performance
+    accessModes:
+      - ReadWriteOnce # Suitable for single pod access to its dedicated PVC
+    size: "20Gi"       # Desired size for each API pod's dedicated PVC
   port: 9000
   service:
     type: ClusterIP
     port: 9000
   env:
     PORT: "9000"
-    POSTGRES_HOST: "{{ include \"geodini.fullname\" . }}-postgres" # Service name of our postgres
+    POSTGRES_HOST: "geodini-postgres" # Service name of our postgres
     POSTGRES_PORT: "5432"
     POSTGRES_USER: "postgres" # Default, can be overridden
     # POSTGRES_PASSWORD will be taken from a secret
@@ -24,18 +35,15 @@ api:
       pullPolicy: IfNotPresent
       tag: "latest"
     command: ["/bin/bash", "-c", "chmod +x /scripts/init-data.sh && /scripts/init-data.sh"]
+    resources:
+      requests:
+        memory: "4Gi"
+      limits:
+        memory: "6Gi"
     volumeMounts:
-      - name: app-data # Renamed for clarity
-        mountPath: /data
-
-# Persistent Volume Claim for application data (DuckDB)
-appDataPersistence:
-  enabled: true
-  storageClassName: "" # Or your specific storage class
-  accessModes:
-    - ReadWriteOnce
-  size: 50Gi # Adjust as needed
-  mountPath: /data # Mount path for the PVC in the API initContainer and container
+      data: # Key 'data' as expected by the template
+        mountPath: /data # mountPath for the 'data' volumeMount
+    forceRecreateData: false
 
 # PostgreSQL/PostGIS configuration
 postgres:
