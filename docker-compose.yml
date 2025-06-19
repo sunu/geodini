@@ -1,20 +1,19 @@
 services:
-  init-data:
+  init-ingest-data:
     build:
       context: .
-      dockerfile: Dockerfile.duckdb
+      dockerfile: Dockerfile.api
     volumes:
-      - ./scripts:/scripts
-      - ./data:/data
-    command:
-      [
-        "/bin/bash",
-        "-c",
-        "chmod +x /scripts/init-data.sh && /scripts/init-data.sh",
-      ]
-
-    # This service is for initialization, so no ports are exposed.
-    # It will run, and upon successful completion, other services depending on it will start.
+      - ./geodini:/app/geodini
+      - ./data:/app/data
+    environment:
+      - POSTGRES_HOST=database
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=postgres
+      - DATA_PATH=/app/data
+    command: ["python", "geodini/ingest.py"]
 
   api:
     build:
@@ -29,13 +28,13 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=postgres
-      - DATA_PATH=/app/data/overture-unified.duckdb
-      # Add other environment variables as needed
+      - DATA_PATH=/app/data
     env_file:
       - .env
     volumes:
       - ./geodini:/app/geodini
       - ./data:/app/data
+
     command:
       [
         "uvicorn",
@@ -49,7 +48,7 @@ services:
     depends_on:
       database:
         condition: service_healthy
-      init-data:
+      init-ingest-data:
         condition: service_completed_successfully
 
   mcp:
@@ -75,8 +74,6 @@ services:
     depends_on:
       database:
         condition: service_healthy
-      init-data:
-        condition: service_completed_successfully
 
   frontend:
     build:

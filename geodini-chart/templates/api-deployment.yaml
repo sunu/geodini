@@ -25,28 +25,45 @@ spec:
       serviceAccountName: {{ include "geodini.serviceAccountName" . }}
       securityContext:
         {}
-      volumes: # Add volumes section
-        - name: duckdb-temp-storage
+      volumes:
+        - name: temp-dir
           emptyDir: {}
-        - name: data-dir
-          emptyDir: {} # This is for the init container to use
       initContainers:
-        - name: init-duckdb
-          image: "{{ .Values.api.initContainer.image.repository }}:{{ .Values.api.initContainer.image.tag }}"
-          imagePullPolicy: {{ .Values.api.initContainer.image.pullPolicy }}
-          command: {{ toJson .Values.api.initContainer.command }}
+        - name: init-ingest-data
+          image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}"
+          imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+          command: {{ toJson .Values.api.initContainer.ingest.command }}
           env:
-            {{- if .Values.api.initContainer.forceRecreateData }}
+            - name: POSTGRES_HOST
+              value: {{ .Values.api.env.POSTGRES_HOST | quote }}
+            - name: POSTGRES_PORT
+              value: {{ .Values.api.env.POSTGRES_PORT | quote }}
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "geodini.fullname" . }}-geodini-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "geodini.fullname" . }}-geodini-secret
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "geodini.fullname" . }}-geodini-secret
+                  key: POSTGRES_DB
+            - name: DATA_PATH
+              value: /tmp/data
+            {{- if .Values.api.initContainer.ingest.forceRecreate }}
             - name: FORCE_RECREATE
               value: "true"
             {{- end }}
           volumeMounts:
-            - name: data-dir
-              mountPath: "/data"
-            - name: duckdb-temp-storage # Mount the emptyDir to /tmp
+            - name: temp-dir
               mountPath: /tmp
           resources:
-            {{- toYaml .Values.api.initContainer.resources | nindent 12 }}
+            {{- toYaml .Values.api.initContainer.ingest.resources | nindent 12 }}
       containers:
         - name: api
           securityContext:
@@ -93,8 +110,6 @@ spec:
                 secretKeyRef:
                   name: {{ include "geodini.fullname" . }}-geodini-secret
                   key: OPENAI_API_KEY
-            - name: DATA_PATH
-              value: {{ .Values.api.env.DATA_PATH | quote }}
           livenessProbe:
             httpGet:
               path: /
@@ -110,28 +125,5 @@ spec:
           resources:
             {{- toYaml .Values.api.resources | nindent 12 }}
           volumeMounts:
-            - name: data-dir
-              mountPath: "/data"
-            # - name: geodini-temp
-            #   mountPath: /tmp
-  volumeClaimTemplates:
-    - metadata:
-        name: app-data
-      spec:
-        accessModes: {{ .Values.api.persistence.accessModes | toYaml | nindent 10 }}
-        resources:
-          requests:
-            storage: {{ .Values.api.persistence.size | quote }}
-        {{- if .Values.api.persistence.storageClassName }}
-        storageClassName: {{ .Values.api.persistence.storageClassName | quote }}
-        {{- end }}
-    - metadata:
-        name: geodini-temp
-      spec:
-        accessModes: ["ReadWriteOnce"]
-        resources:
-          requests:
-            storage: 20Gi # temporary storage for duckdb. Needs to be fast
-        {{- if .Values.api.persistence.storageClassName }}
-        storageClassName: {{ .Values.api.persistence.storageClassName | quote }}
-        {{- end }}
+            - name: temp-dir
+              mountPath: /tmp

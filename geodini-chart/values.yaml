@@ -8,10 +8,10 @@ api:
     tag: "latest"
   resources:
     requests:
-      cpu: "3.5"
-      memory: "6Gi"
+      cpu: "1"
+      memory: "1Gi"
     limits:
-      memory: "8Gi"
+      memory: "2Gi"
   persistence:
     # storageClassName: "your-storage-class" # Use a high-performance storage class if available for best performance
     accessModes:
@@ -25,25 +25,16 @@ api:
     PORT: "9000"
     POSTGRES_HOST: "geodini-postgres" # Service name of our postgres
     POSTGRES_PORT: "5432"
-    POSTGRES_USER: "postgres" # Default, can be overridden
-    # POSTGRES_PASSWORD will be taken from a secret
-    POSTGRES_DB: "postgres"   # Default, can be overridden
-    DATA_PATH: "/data/overture-unified.duckdb"
+    # POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB are taken from a secret
   initContainer:
-    image:
-      repository: ghcr.io/sunu/geodini/duckdb-init
-      pullPolicy: IfNotPresent
-      tag: "latest"
-    command: ["/bin/bash", "-c", "chmod +x /scripts/init-data.sh && /scripts/init-data.sh"]
-    resources:
-      requests:
-        memory: "4Gi"
-      limits:
-        memory: "6Gi"
-    volumeMounts:
-      data: # Key 'data' as expected by the template
-        mountPath: /data # mountPath for the 'data' volumeMount
-    forceRecreateData: false
+    ingest:
+      command: ["python", "geodini/ingest.py"]
+      resources:
+        requests:
+          memory: "1Gi"
+        limits:
+          memory: "2Gi"
+      forceRecreate: false
 
 # PostgreSQL/PostGIS configuration
 postgres:
