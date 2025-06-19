@@ -13,6 +13,7 @@ import pyarrow.parquet as pq
 from shapely import wkb
 from sqlalchemy import create_engine, text
 
+
 dotenv.load_dotenv()
 
 # Setup logging
@@ -123,8 +124,29 @@ def get_common_en_name(names_obj):
 
 
 def check_and_download_data():
-    """Check if data exists in DATA_PATH, if not download from S3"""
+    """Check if data exists in DATA_PATH, if not download from S3. Skip download if tables already exist."""
     logger.info(f"Checking for data in: {DATA_PATH}")
+
+    # Check if tables already exist with data (unless FORCE_RECREATE is set)
+    if not FORCE_RECREATE:
+        divisions_exists, divisions_count = check_table_exists_with_data("divisions")
+        division_areas_exists, division_areas_count = check_table_exists_with_data(
+            "division_areas"
+        )
+
+        if (
+            divisions_exists
+            and division_areas_exists
+            and divisions_count > 0
+            and division_areas_count > 0
+        ):
+            logger.info(
+                f"Tables already exist with data (divisions: {divisions_count:,}, division_areas: {division_areas_count:,})"
+            )
+            logger.info(
+                "Skipping data download. Set FORCE_RECREATE=true to force re-download."
+            )
+            return
 
     # Define the required directories and their S3 sources
     data_requirements = {
@@ -258,6 +280,11 @@ def load_division_areas_in_batches():
 
     if FORCE_RECREATE and table_exists:
         logger.info("FORCE_RECREATE is set. Will recreate division_areas table.")
+
+    # Drop dependent view before replacing table
+    logger.info("Dropping dependent view before table replacement...")
+    with engine.begin() as conn:
+        conn.execute(text("DROP VIEW IF EXISTS all_geometries;"))
 
     logger.info("Starting to load division areas...")
 
