@@ -9,14 +9,9 @@ api:
   resources:
     requests:
       cpu: "1"
-      memory: "1Gi"
-    limits:
       memory: "2Gi"
-  persistence:
-    # storageClassName: "your-storage-class" # Use a high-performance storage class if available for best performance
-    accessModes:
-      - ReadWriteOnce # Suitable for single pod access to its dedicated PVC
-    size: "20Gi"       # Desired size for each API pod's dedicated PVC
+    limits:
+      memory: "4Gi"
   port: 9000
   service:
     type: ClusterIP
@@ -31,9 +26,9 @@ api:
       command: ["python", "geodini/ingest.py"]
       resources:
         requests:
-          memory: "1Gi"
-        limits:
           memory: "2Gi"
+        limits:
+          memory: "4Gi"
       forceRecreate: false
 
 # PostgreSQL/PostGIS configuration
@@ -53,7 +48,7 @@ postgres:
     storageClassName: "" # Or your specific storage class
     accessModes:
       - ReadWriteOnce
-    size: 10Gi # Adjust as needed
+    size: 40Gi # Adjust as needed
 
 ingress:
   enabled: false
@@ -64,7 +59,6 @@ ingress:
 
   # API Ingress Configuration
   apiHost: "api.geodini.local" # Placeholder, e.g., api.yourdomain.com
-  # apiTlsSecretName: "geodini-api-tls"       # Optional: if TLS is enabled for API
 
   # Common TLS configuration.
   # You can define one or more secrets.

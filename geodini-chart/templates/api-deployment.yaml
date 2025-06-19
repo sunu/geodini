@@ -28,6 +28,7 @@ spec:
       volumes:
         - name: temp-dir
           emptyDir: {}
+      {{- if .Values.api.initContainer.ingest.enabled }}
       initContainers:
         - name: init-ingest-data
           image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}"
@@ -64,6 +65,7 @@ spec:
               mountPath: /tmp
           resources:
             {{- toYaml .Values.api.initContainer.ingest.resources | nindent 12 }}
+      {{- end }}
       containers:
         - name: api
           securityContext:
