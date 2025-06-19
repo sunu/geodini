@@ -5,8 +5,8 @@ description = "A natural language geocoding API."
 authors = []
 license = "MIT"
 dependencies = [
+  "awscli",
   "dotenv",
-  "duckdb>=0.9.0",
   "fastapi>=0.104.0",
   "numpy>=1.25.0",
   "openai>=1.0.0",
@@ -19,7 +19,10 @@ dependencies = [
   "rich>=13.0.0",
   "shapely>=2.0.0",
   "typer>=0.9.0",
-  "uvicorn>=0.23.0"
+  "uvicorn>=0.23.0",
+  "geopandas",
+  "geoalchemy2",
+  "pyarrow",
 ]
 requires-python = ">=3.10"
 

@@ -72,7 +72,7 @@ class RoutingContext:
 
 
 routing_agent = Agent(
-    "openai:gpt-4o-mini",
+    "openai:gpt-4.1-mini",
     output_type=RoutingResult,
     deps_type=RoutingContext,
     system_prompt="""
@@ -94,7 +94,7 @@ class ComplexQueryContext:
 
 
 complex_geocode_query_agent = Agent(
-    "openai:gpt-4o-mini",
+    "openai:gpt-4.1-mini",
     output_type=ComplexGeocodeResult,
     deps_type=ComplexQueryContext,
     system_prompt="""

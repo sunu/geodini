@@ -1,0 +1,41 @@
+{{- $fullName := include "geodini.fullname" . -}}
+{{- $apiServiceName := printf "%s-api" $fullName -}}
+{{- $postgresServiceName := printf "%s-postgres" $fullName -}}
+{{- $apiServicePort := .Values.api.service.port -}}
+
+Your Geodini application has been deployed.
+
+API Service: {{ $apiServiceName }}
+{{- if .Values.postgres.enabled }}
+PostgreSQL Service: {{ $postgresServiceName }} (internal)
+{{- end }}
+
+{{- if .Values.ingress.enabled }}
+To access your application via Ingress:
+  {{- if .Values.ingress.apiHost }}
+    {{- $apiHost := .Values.ingress.apiHost -}}
+    {{- $apiProtocol := "http" -}}
+    {{- range .Values.ingress.tls -}}
+      {{- if and .hosts (has $apiHost .hosts) -}}
+        {{- $apiProtocol = "https" -}}
+      {{- end -}}
+    {{- end }}
+  API:      {{ printf "%s://%s" $apiProtocol $apiHost }}
+  {{- end }}
+{{- else }}
+To access your application, you might need to set up port-forwarding:
+
+  kubectl port-forward svc/{{ $apiServiceName }} {{ $apiServicePort }}:{{ $apiServicePort }}
+  {{- if .Values.postgres.enabled }}
+  # For PostgreSQL (if needed for direct access, typically not required by end-users)
+  # kubectl port-forward svc/{{ $postgresServiceName }} 5432:{{ .Values.postgres.service.port }}
+  {{- end }}
+
+And the API at http://localhost:{{ $apiServicePort }}
+{{- end }}
+
+{{- if .Values.postgres.enabled }}
+The PostgreSQL password is set in the '{{ $fullName }}-geodini-secret' secret.
+Default user: {{ .Values.postgres.user }}
+Default database: {{ .Values.postgres.database }}
+{{- end }}
