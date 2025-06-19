@@ -112,7 +112,7 @@ async def search_places(query: str) -> list[Place]:
         # Execute in ThreadPoolExecutor to avoid blocking the main thread
         with ThreadPoolExecutor() as executor:
             futures = [
-                executor.submit(geocoder, rephrased_query.output.query, limit=20)
+                executor.submit(geocoder, rephrased_query.output.query, limit=50)
                 for geocoder in geocoder_group
             ]
             for future in futures:

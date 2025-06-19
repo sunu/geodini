@@ -22,7 +22,7 @@ def get_postgis_engine():
     return create_engine(f"postgresql://{user}:{password}@{host}:{port}/{database}")
 
 
-def geocode(query: str, limit: int | None = 20) -> list[dict[str, Any]]:
+def geocode(query: str, limit: int | None = 50) -> list[dict[str, Any]]:
     """
     Geocode using PostgreSQL/PostGIS database with trigram similarity search.
     Follows the same signature and return format as the geocode() function.
