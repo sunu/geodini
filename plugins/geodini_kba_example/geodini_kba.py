@@ -7,7 +7,7 @@ def get_geocoders(geocoders):
     return [kba_geocoder]
 
 
-def kba_geocoder(query: str, limit: int | None = None):
+def kba_geocoder(query: str):
     """Here the caller expects us to return a list."""
     data = [
         {

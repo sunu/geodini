@@ -22,7 +22,7 @@ def get_postgis_engine():
     return create_engine(f"postgresql://{user}:{password}@{host}:{port}/{database}")
 
 
-def geocode(query: str, limit: int | None = 50) -> list[dict[str, Any]]:
+def geocode(query: str) -> list[dict[str, Any]]:
     """
     Geocode using PostgreSQL/PostGIS database with trigram similarity search.
     Follows the same signature and return format as the geocode() function.
@@ -43,14 +43,14 @@ def geocode(query: str, limit: int | None = 50) -> list[dict[str, Any]]:
     query_start_time = time.time()
 
     # Build the PostgreSQL query using trigram similarity
-    sql_query = build_postgis_query(limit is not None)
+    sql_query = build_postgis_query()
 
     try:
         with engine.begin() as conn:
             if limit is not None:
                 result = conn.execute(text(sql_query), {"query": query, "limit": limit})
             else:
-                result = conn.execute(text(sql_query), {"query": query})
+            result = conn.execute(text(sql_query), {"query": query})
 
             rows = result.fetchall()
 
@@ -94,7 +94,7 @@ def geocode(query: str, limit: int | None = 50) -> list[dict[str, Any]]:
     return results
 
 
-def build_postgis_query(has_limit: bool) -> str:
+def build_postgis_query() -> str:
     """Build PostgreSQL query for searching overture unified data using trigram similarity"""
 
     sql_query = """
@@ -115,7 +115,25 @@ def build_postgis_query(has_limit: bool) -> str:
                 COALESCE(SIMILARITY(primary_name, :query), 0),
                 COALESCE(SIMILARITY(common_en_name, :query), 0)
             ) as similarity,
-            ST_AsGeoJSON(geometry) as geometry
+            ST_AsGeoJSON(geometry) as geometry,
+            GREATEST(
+                COALESCE(SIMILARITY(primary_name, :query), 0),
+                COALESCE(SIMILARITY(common_en_name, :query), 0)
+            ) * CASE subtype
+                WHEN 'country' THEN 2.0
+                WHEN 'dependency' THEN 2.0
+                WHEN 'macroregion' THEN 2.0
+                WHEN 'region' THEN 2.0
+                WHEN 'macrocounty' THEN 2.0
+                WHEN 'county' THEN 1.1
+                WHEN 'localadmin' THEN 1.5
+                WHEN 'locality' THEN 0.9
+                WHEN 'borough' THEN 0.8
+                WHEN 'macrohood' THEN 0.8
+                WHEN 'neighborhood' THEN 0.8
+                WHEN 'microhood' THEN 0.8
+                ELSE 1.0
+            END as weighted_similarity
         FROM all_geometries
         WHERE 
             source_type = 'division'
@@ -124,13 +142,10 @@ def build_postgis_query(has_limit: bool) -> str:
             AND GREATEST(
                 COALESCE(SIMILARITY(primary_name, :query), 0),
                 COALESCE(SIMILARITY(common_en_name, :query), 0)
-            ) > 0.3
-        ORDER BY similarity DESC
+            ) > 0.33
+        ORDER BY weighted_similarity DESC
+        LIMIT 50
     """
-
-    # Add LIMIT clause only if limit is specified
-    if has_limit:
-        sql_query += " LIMIT :limit"
 
     return sql_query
 
@@ -141,7 +156,7 @@ if __name__ == "__main__":
     # Test PostgreSQL geocoding
     print("=== Testing PostgreSQL geocoding ===")
     start_time = time.time()
-    postgis_results = geocode("new york", limit=5)
+    postgis_results = geocode("new york")
     end_time = time.time()
     print(f"PostgreSQL time taken: {end_time - start_time} seconds")
     print(f"PostgreSQL results: {len(postgis_results)} found")

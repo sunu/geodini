@@ -77,12 +77,13 @@ rephrase_agent = Agent(
     output_type=RephrasedQuery,
     deps_type=SearchContext,
     system_prompt="""
-        Given the search query, rephrase it to be more specific and accurate.
+        Given the search query, rephrase it to be more specific and accurate. We will be using this query to search for places in the overture database. So it helps to make the query be full formal name of the place.
         
         Extract:
         1. The main search term (place name) - for example, "the city of San Francisco" should return "San Francisco", "New York City" should return "New York", "Paris, TX" should return "Paris",
             "Sahara Desert" should return "Sahara", "The Himalayan mountain range" should return "Himalaya", "The Amazon rainforest" should return "Amazon".
             If the query is a shortened name, return the full name - for example, "usa" or "The US" should return "United States" and so on.
+            If the query is a informal name, return the formal name along with the informal name - for example, "Washington DC" should return "Washington, District of Columbia".
         2. Country code (ISO 2-letter code) if a specific country is mentioned
         3. Whether an exact match is requested (e.g., "exactly", "precisely")
         
@@ -112,13 +113,11 @@ async def search_places(query: str) -> list[Place]:
         # Execute in ThreadPoolExecutor to avoid blocking the main thread
         with ThreadPoolExecutor() as executor:
             futures = [
-                executor.submit(geocoder, rephrased_query.output.query, limit=50)
+                executor.submit(geocoder, rephrased_query.output.query)
                 for geocoder in geocoder_group
             ]
             for future in futures:
                 results.extend(future.result())
-    # results = geocoder.geocode(rephrased_query.output.query, limit=20)
-    # pprint(results)
     geocoding_time = time.time() - geocoding_start_time
     print(f"Geocoding time: {geocoding_time} seconds")
 
