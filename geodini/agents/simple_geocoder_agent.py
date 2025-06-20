@@ -53,9 +53,14 @@ rerank_agent = Agent(
         
         From the results list, return a JSON object with:
         1. "most_probable": The ID of the most relevant result
-        2. "next_probable": A list of IDs of the next 3 most relevant results in order of relevance
+        2. "next_probable": A list of IDs of the next 5 most relevant results in order of relevance
 
         Make sure the returned IDs are in the results list.
+
+        While reranking, consider the following:
+        - The query might be a shortened name and the result might be a full name. For example, "United States" or "United States of America" is a match for "USA" or "The US".
+        - The query might be a informal name and the result might be a formal name. For example, "District of Columbia" is a candidate for "DC" or "Washington, D.C." or even just "Washington". So consider all possible variations of the query when matching.
+        - Consider geographical context. For example, "London in Canada" should rank "London, Ontario" higher than "London, England" because it is more likely to be the correct answer.   
 """,
 )
 
@@ -184,13 +189,13 @@ async def search_places(query: str) -> list[Place]:
             for place_id in reranked_results.output.next_probable
         ]
     else:
-        most_probable = []
+        most_probable = None
         next_probable = []
 
     return {
         "most_probable": most_probable,
         "next_probable": next_probable,
-        "results": list(results_dict.values()),
+        "results": [most_probable, *next_probable],
         "query": query,
         "rephrased_query": rephrased_query.output.query,
         "country_code": rephrased_query.output.country_code,

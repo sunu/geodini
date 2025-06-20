@@ -47,9 +47,6 @@ def geocode(query: str) -> list[dict[str, Any]]:
 
     try:
         with engine.begin() as conn:
-            if limit is not None:
-                result = conn.execute(text(sql_query), {"query": query, "limit": limit})
-            else:
             result = conn.execute(text(sql_query), {"query": query})
 
             rows = result.fetchall()
@@ -125,8 +122,8 @@ def build_postgis_query() -> str:
                 WHEN 'macroregion' THEN 2.0
                 WHEN 'region' THEN 2.0
                 WHEN 'macrocounty' THEN 2.0
-                WHEN 'county' THEN 1.1
-                WHEN 'localadmin' THEN 1.5
+                WHEN 'county' THEN 1.0
+                WHEN 'localadmin' THEN 1.1
                 WHEN 'locality' THEN 0.9
                 WHEN 'borough' THEN 0.8
                 WHEN 'macrohood' THEN 0.8
@@ -164,3 +161,10 @@ if __name__ == "__main__":
     if postgis_results:
         print("\nSample PostgreSQL result:")
         pprint(postgis_results[0])
+
+    # print the name and similarity score of all results
+    for result in postgis_results:
+        print(
+            f"Name: {result['name']}, Similarity: {result['similarity']}, Type: {result['subtype']}, Country: {result['country']}"
+        )
+    print(len(postgis_results))
