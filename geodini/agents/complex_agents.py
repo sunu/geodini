@@ -13,6 +13,7 @@ from shapely.ops import transform
 from geodini.agents.simple_geocoder_agent import search_places
 from geodini.agents.utils.postgis_exec import (
     clear_geometries_table,
+    create_geometries_table,
     insert_place,
     postgis_agent,
     postgis_query_judgement_agent,
@@ -147,6 +148,7 @@ async def geocode_complex(query: str) -> dict[str, Any]:
         for name, geometry in input_geometries.items():
             # Convert geometry dictionary to GeoJSON string
             geometry_json = json.dumps(geometry)
+            create_geometries_table()
             insert_place(name, geometry_json)
 
         try:
