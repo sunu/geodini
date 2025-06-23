@@ -120,8 +120,8 @@ async def geocode_complex(query: str) -> dict[str, Any]:
     if routing_result.output.query_type == "simple":
         print(f"Simple query: {query}")
         results = await search_places(query)
-        pprint(results["most_probable"])
-        return results.get("most_probable", None)
+        most_probable = results.get("most_probable", {})
+        return most_probable.get("geometry", None)
     else:
         print(f"Complex query: {query}")
         complex_geocode_result = await complex_geocode_query_agent.run(
@@ -129,7 +129,6 @@ async def geocode_complex(query: str) -> dict[str, Any]:
             deps=ComplexQueryContext(query=query),
         )
         geocoding_queries = complex_geocode_result.output.queries
-        print(f"Complex geocode result: {geocoding_queries}")
         input_geometries = {}
         for geocoding_query in geocoding_queries:
             result = await search_places(geocoding_query)

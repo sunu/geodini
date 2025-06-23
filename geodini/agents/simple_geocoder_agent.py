@@ -102,7 +102,6 @@ async def search_places(query: str) -> list[Place]:
     pm = get_plugin_manager()
     geocoders = pm.hook.get_geocoders(geocoders=list())
     print(f"Geocoders: {geocoders}")
-    print(type(geocoders[0]))
     start_time = time.time()
     rephrased_query = await rephrase_agent.run(
         user_prompt=f"Search query: {query}",
@@ -154,7 +153,6 @@ async def search_places(query: str) -> list[Place]:
         search query: {query},
         results: {places}
         """
-        pprint(places[-1])
         pprint(user_prompt)
         reranked_results = await rerank_agent.run(
             user_prompt=user_prompt,
