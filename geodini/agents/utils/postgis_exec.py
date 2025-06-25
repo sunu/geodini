@@ -92,7 +92,7 @@ def delete_geometries_table():
 
 
 postgis_agent = Agent(
-    "openai:gpt-4o",
+    "openai:gpt-4.1",
     output_type=PostGISResult,
     system_prompt="""
     You are a helpful assistant that can help with PostGIS queries.
@@ -128,6 +128,9 @@ postgis_agent = Agent(
     - Area within 100kms of USA and Canada borders
         - Border is the intersection of USA and Canada geometries
         - 100kms buffer around the border
+    - Border of India and China:
+        - Border is the intersection of India and China geometries
+        - We want to return a polygon of the border, so take a minimum buffer of 1km around the border
     """,
 )
 
