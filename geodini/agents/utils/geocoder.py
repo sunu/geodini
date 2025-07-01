@@ -120,7 +120,7 @@ def build_postgis_query() -> str:
                 COALESCE(SIMILARITY(primary_name, :query), 0),
                 COALESCE(SIMILARITY(common_en_name, :query), 0)
             ) as similarity,
-            ST_AsGeoJSON(geometry) as geometry,
+            ST_AsGeoJSON(ST_Simplify(geometry, 0.001)) as geometry,
             GREATEST(
                 COALESCE(SIMILARITY(primary_name, :query), 0),
                 COALESCE(SIMILARITY(common_en_name, :query), 0)
