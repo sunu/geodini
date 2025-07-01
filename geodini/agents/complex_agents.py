@@ -19,6 +19,7 @@ from geodini.agents.utils.postgis_exec import (
     postgis_query_judgement_agent,
     run_postgis_query,
 )
+from geodini.cache import cached
 
 
 class RoundedFloat(float):
@@ -108,6 +109,13 @@ complex_geocode_query_agent = Agent(
 )
 
 
+@cached(
+    prefix="geocode_complex",
+    ttl=3600,  # 1 hour
+    cache_condition=lambda result: result
+    and result.get("results")
+    and len(result["results"]) > 0,  # Only cache if there are results
+)
 async def geocode_complex(query: str) -> dict[str, Any]:
     """
     Geocode a complex query containing spatial logic and operators.

@@ -7,6 +7,7 @@ import pluggy
 from pydantic_ai import Agent
 
 from geodini import hookspecs, lib
+from geodini.cache import cached
 
 
 def get_plugin_manager():
@@ -97,7 +98,14 @@ rephrase_agent = Agent(
 )
 
 
-async def search_places(query: str) -> list[Place]:
+@cached(
+    prefix="agent_search",
+    ttl=1800,  # 30 minutes
+    cache_condition=lambda result: result
+    and result.get("results")
+    and len(result["results"]) > 0,  # Only cache if there are results
+)
+async def search_places(query: str) -> dict:
     print(f"Starting search for {query}")
     pm = get_plugin_manager()
     geocoders = pm.hook.get_geocoders(geocoders=list())

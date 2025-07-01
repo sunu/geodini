@@ -7,6 +7,8 @@ import time
 from sqlalchemy import create_engine, text
 import dotenv
 
+from geodini.cache import cached
+
 dotenv.load_dotenv()
 
 
@@ -22,6 +24,12 @@ def get_postgis_engine():
     return create_engine(f"postgresql://{user}:{password}@{host}:{port}/{database}")
 
 
+@cached(
+    prefix="postgis_geocode",
+    ttl=3600,  # 1 hour
+    cache_condition=lambda result: result
+    and len(result) > 0,  # Only cache non-empty results
+)
 def geocode(query: str) -> list[dict[str, Any]]:
     """
     Geocode using PostgreSQL/PostGIS database with trigram similarity search.
