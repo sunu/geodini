@@ -1,15 +1,19 @@
 import json
+import logging
 import os
+import time
 from pprint import pprint
 from typing import Any
-import time
 
 from sqlalchemy import create_engine, text
 import dotenv
 
 from geodini.cache import cached
 
+
 dotenv.load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 
 # PostgreSQL connection settings
@@ -43,10 +47,10 @@ def geocode(query: str) -> list[dict[str, Any]]:
         try:
             conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm;"))
         except Exception as e:
-            print(f"Warning: Could not enable pg_trgm extension: {e}")
+            logger.warning(f"Warning: Could not enable pg_trgm extension: {e}")
 
     connect_time = time.time() - start_time
-    print(f"PostgreSQL connection time: {connect_time:.2f} seconds")
+    logger.info(f"PostgreSQL connection time: {connect_time:.2f} seconds")
 
     query_start_time = time.time()
 
@@ -87,14 +91,14 @@ def geocode(query: str) -> list[dict[str, Any]]:
                 )
 
     except Exception as e:
-        print(f"Error executing PostgreSQL query: {e}")
+        logger.error(f"Error executing PostgreSQL query: {e}")
         return []
 
     query_time = time.time() - query_start_time
-    print(f"PostgreSQL query execution time: {query_time:.2f} seconds")
+    logger.info(f"PostgreSQL query execution time: {query_time:.2f} seconds")
 
     total_time = time.time() - start_time
-    print(f"Total query execution time: {total_time:.2f} seconds")
+    logger.info(f"Total query execution time: {total_time:.2f} seconds")
 
     return results
 

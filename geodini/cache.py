@@ -54,6 +54,7 @@ class RedisCache:
             "kwargs": {k: str(v) for k, v in sorted(kwargs.items())},
         }
         key_string = json.dumps(key_data, sort_keys=True)
+        logger.info(f"Key string: {key_string}")
         key_hash = hashlib.md5(key_string.encode()).hexdigest()
         return f"{prefix}:{key_hash}"
 
@@ -93,6 +94,17 @@ class RedisCache:
             return bool(self.redis_client.delete(key))
         except RedisError as e:
             logger.warning(f"Cache delete error for key {key}: {e}")
+            return False
+
+    def delete_all(self) -> bool:
+        """Delete all cached data"""
+        if not self.redis_client:
+            return False
+
+        try:
+            return bool(self.redis_client.flushdb())
+        except RedisError as e:
+            logger.warning(f"Cache delete all error: {e}")
             return False
 
     def is_available(self) -> bool:
@@ -144,6 +156,7 @@ def cached(
                     cache_key = cache._generate_cache_key(prefix, *args, **kwargs)
 
                 # Try to get from cache
+                logger.info(f"Trying to get from cache for key async: {cache_key}")
                 cached_result = cache.get(cache_key)
                 if cached_result is not None:
                     logger.info(
@@ -183,6 +196,7 @@ def cached(
                     cache_key = cache._generate_cache_key(prefix, *args, **kwargs)
 
                 # Try to get from cache
+                logger.info(f"Trying to get from cache for key sync: {cache_key}")
                 cached_result = cache.get(cache_key)
                 if cached_result is not None:
                     logger.info(
@@ -219,6 +233,11 @@ def cache_invalidate(prefix: str, *args, **kwargs) -> bool:
     """Invalidate cache for specific function call"""
     cache_key = cache._generate_cache_key(prefix, *args, **kwargs)
     return cache.delete(cache_key)
+
+
+def cache_invalidate_all() -> bool:
+    """Invalidate all cache"""
+    return cache.delete_all()
 
 
 def cache_status() -> dict:
