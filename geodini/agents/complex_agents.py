@@ -112,9 +112,7 @@ complex_geocode_query_agent = Agent(
 @cached(
     prefix="geocode_complex",
     ttl=3600,  # 1 hour
-    cache_condition=lambda result: result
-    and result.get("results")
-    and len(result["results"]) > 0,  # Only cache if there are results
+    cache_condition=lambda result: result is not None,  # Cache any non-None result
 )
 async def geocode_complex(query: str) -> dict[str, Any]:
     """
