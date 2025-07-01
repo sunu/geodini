@@ -29,6 +29,9 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=postgres
       - DATA_PATH=/app/data
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
     env_file:
       - .env
     volumes:
@@ -48,6 +51,8 @@ services:
     depends_on:
       database:
         condition: service_healthy
+      redis:
+        condition: service_healthy
       init-ingest-data:
         condition: service_completed_successfully
 
@@ -64,7 +69,9 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=postgres
-      # Add other environment variables as needed
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
     env_file:
       - .env
     volumes:
@@ -73,6 +80,8 @@ services:
     command: ["python", "geodini/api/mcp_server.py"]
     depends_on:
       database:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   frontend:
@@ -87,6 +96,19 @@ services:
       - GEODINI_API_URL=http://localhost:29000
     depends_on:
       - api
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "16379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - ./data1/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   database:
     image: postgis/postgis:17-3.4

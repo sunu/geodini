@@ -1,12 +1,17 @@
 import time
 from dataclasses import dataclass
-from pprint import pprint
+import logging
+from pprint import pformat
 from concurrent.futures import ThreadPoolExecutor
 
 import pluggy
 from pydantic_ai import Agent
 
 from geodini import hookspecs, lib
+from geodini.cache import cached
+
+
+logger = logging.getLogger(__name__)
 
 
 def get_plugin_manager():
@@ -97,19 +102,26 @@ rephrase_agent = Agent(
 )
 
 
-async def search_places(query: str) -> list[Place]:
-    print(f"Starting search for {query}")
+@cached(
+    prefix="agent_search",
+    ttl=1800,  # 30 minutes
+    cache_condition=lambda result: result
+    and result.get("results")
+    and len(result["results"]) > 0,  # Only cache if there are results
+)
+async def search_places(query: str) -> dict:
+    logger.info(f"Starting search for {query}")
     pm = get_plugin_manager()
     geocoders = pm.hook.get_geocoders(geocoders=list())
-    print(f"Geocoders: {geocoders}")
+    logger.info(f"Geocoders: {geocoders}")
     start_time = time.time()
     rephrased_query = await rephrase_agent.run(
         user_prompt=f"Search query: {query}",
         deps=SearchContext(query=query),
     )
-    pprint(rephrased_query.output)
+    logger.info(f"Rephrased query: {pformat(rephrased_query.output)}")
     rephrased_query_time = time.time() - start_time
-    print(f"Rephrased query time: {rephrased_query_time} seconds")
+    logger.info(f"Rephrased query time: {rephrased_query_time} seconds")
 
     geocoding_start_time = time.time()
     results = []
@@ -123,7 +135,7 @@ async def search_places(query: str) -> list[Place]:
             for future in futures:
                 results.extend(future.result())
     geocoding_time = time.time() - geocoding_start_time
-    print(f"Geocoding time: {geocoding_time} seconds")
+    logger.info(f"Geocoding time: {geocoding_time} seconds")
 
     reranking_start_time = time.time()
     for result in results:
@@ -153,16 +165,16 @@ async def search_places(query: str) -> list[Place]:
         search query: {query},
         results: {places}
         """
-        pprint(user_prompt)
+        logger.info(f"User prompt: {pformat(user_prompt)}")
         reranked_results = await rerank_agent.run(
             user_prompt=user_prompt,
             deps=RerankingContext(query=query, results=places),
         )
         reranking_time = time.time() - reranking_start_time
-        print(f"Reranking time: {reranking_time} seconds")
+        logger.info(f"Reranking time: {reranking_time} seconds")
 
     total_time = time.time() - start_time
-    print(f"Total time: {total_time} seconds")
+    logger.info(f"Total time: {total_time} seconds")
 
     # pprint(results)
 
