@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import traceback
 from dataclasses import dataclass
 from pprint import pprint  # noqa: F401
@@ -19,6 +20,10 @@ from geodini.agents.utils.postgis_exec import (
     postgis_query_judgement_agent,
     run_postgis_query,
 )
+from geodini.cache import cached
+
+
+logger = logging.getLogger(__name__)
 
 
 class RoundedFloat(float):
@@ -58,7 +63,6 @@ def simplify_geometry(
     # Apply new rounding logic
     geojson = clip_coordinates_with_rounding(geojson_raw)
 
-    print(f"Simplified geometry: {geojson}")
     return geojson
 
 
@@ -108,6 +112,11 @@ complex_geocode_query_agent = Agent(
 )
 
 
+@cached(
+    prefix="geocode_complex",
+    ttl=3600,  # 1 hour
+    cache_condition=lambda result: result is not None,  # Cache any non-None result
+)
 async def geocode_complex(query: str) -> dict[str, Any]:
     """
     Geocode a complex query containing spatial logic and operators.
@@ -118,12 +127,12 @@ async def geocode_complex(query: str) -> dict[str, Any]:
         deps=RoutingContext(query=query),
     )
     if routing_result.output.query_type == "simple":
-        print(f"Simple query: {query}")
+        logger.info(f"Simple query: {query}")
         results = await search_places(query)
         most_probable = results.get("most_probable", {})
         return most_probable.get("geometry", None)
     else:
-        print(f"Complex query: {query}")
+        logger.info(f"Complex query: {query}")
         complex_geocode_result = await complex_geocode_query_agent.run(
             user_prompt=f"Search query: {query}",
             deps=ComplexQueryContext(query=query),
@@ -143,7 +152,7 @@ async def geocode_complex(query: str) -> dict[str, Any]:
             user_prompt=f"Search query: {query}. Geometries available in the geometries table: {input_geometries.keys()}"
         )
         sql_query = postgis_query_result.output.query
-        print(f"PostGIS query result: {sql_query}")
+        logger.info(f"PostGIS query result: {sql_query}")
         for name, geometry in input_geometries.items():
             # Convert geometry dictionary to GeoJSON string
             geometry_json = json.dumps(geometry)
@@ -154,7 +163,7 @@ async def geocode_complex(query: str) -> dict[str, Any]:
             result = run_postgis_query(sql_query)
         except Exception:
             error_traceback = traceback.format_exc()
-            print(f"Error traceback:\n {error_traceback}")
+            logger.info(f"Error traceback:\n {error_traceback}")
             user_prompt = f"""
             If I have geometries of {", ".join(input_geometries.keys())},
             what's the PostGIS SQL query to answer the query: {query}?
@@ -168,8 +177,8 @@ async def geocode_complex(query: str) -> dict[str, Any]:
             rechecked_query = await postgis_query_judgement_agent.run(
                 user_prompt=user_prompt
             )
-            print(f"user prompt:\n {user_prompt}")
-            print(f"Error re-checked query: {rechecked_query.output.query}")
+            logger.info(f"user prompt:\n {user_prompt}")
+            logger.info(f"Error re-checked query: {rechecked_query.output.query}")
             result = run_postgis_query(rechecked_query.output.query)
         clear_geometries_table()
 

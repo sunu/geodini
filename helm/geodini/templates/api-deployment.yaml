@@ -107,6 +107,19 @@ spec:
                 secretKeyRef:
                   name: {{ include "geodini.fullname" . }}-geodini-secret
                   key: POSTGRES_DB
+            - name: REDIS_HOST
+              value: {{ .Values.api.env.REDIS_HOST | quote }}
+            - name: REDIS_PORT
+              value: {{ .Values.api.env.REDIS_PORT | quote }}
+            - name: REDIS_DB
+              value: {{ .Values.api.env.REDIS_DB | quote }}
+            {{- if .Values.redis.auth.enabled }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "geodini.fullname" . }}-redis
+                  key: redis-password
+            {{- end }}
             - name: OPENAI_API_KEY
               valueFrom:
                 secretKeyRef:

@@ -20,6 +20,9 @@ api:
     PORT: "9000"
     POSTGRES_HOST: "geodini-postgres" # Service name of our postgres
     POSTGRES_PORT: "5432"
+    REDIS_HOST: "geodini-redis-master" # Service name of Redis subchart
+    REDIS_PORT: "6379"
+    REDIS_DB: "0"
     # POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB are taken from a secret
   initContainer:
     ingest:
@@ -49,6 +52,26 @@ postgres:
     accessModes:
       - ReadWriteOnce
     size: 40Gi # Adjust as needed
+
+# Redis subchart configuration
+redis:
+  enabled: true
+  auth:
+    enabled: false
+  master:
+    persistence:
+      enabled: true
+      storageClass: "" # Or your specific storage class
+      size: 8Gi # Adjust as needed
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+  replica:
+    replicaCount: 0 # Disable replicas for simplicity
 
 ingress:
   enabled: false

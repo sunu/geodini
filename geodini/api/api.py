@@ -1,3 +1,4 @@
+import logging
 import os
 from typing import Any
 
@@ -9,6 +10,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from geodini.agents.complex_agents import geocode_complex
 from geodini.agents.simple_geocoder_agent import search_places
 from geodini.agents.utils.postgis_exec import get_postgis_connection
+
+
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 dotenv.load_dotenv()
@@ -52,7 +56,7 @@ async def search(
     try:
         search_term = query
 
-        print(f"Search term: {search_term}")
+        logger.info(f"Search term: {search_term}")
 
         # Get dictionary result from search tool
         result = await search_places(search_term)
@@ -60,10 +64,7 @@ async def search(
         return result
 
     except Exception as e:
-        print(f"Error searching divisions data: {str(e)}")
-        import traceback
-
-        print(traceback.format_exc())
+        logger.exception(f"Error searching divisions data: {str(e)}")
         raise HTTPException(
             status_code=500, detail=f"Error searching divisions data: {str(e)}"
         )
@@ -87,7 +88,7 @@ async def search_complex(
     Returns search results based on the provided complex query.
     """
     try:
-        print(f"Searching with complex query: {query}")
+        logger.info(f"Searching with complex query: {query}")
 
         # Get result from complex search tool
         result = await geocode_complex(query)
@@ -101,10 +102,7 @@ async def search_complex(
         }
 
     except Exception as e:
-        print(f"Error processing complex search query: {str(e)}")
-        import traceback
-
-        print(traceback.format_exc())
+        logger.exception(f"Error processing complex search query: {str(e)}")
         raise HTTPException(
             status_code=500, detail=f"Error processing complex search query: {str(e)}"
         )
@@ -125,7 +123,7 @@ async def health_check():
             if result[0] != 1:
                 raise Exception("PostGIS failed to execute test query")
     except Exception as e:
-        print(f"Health check failed: {str(e)}")
+        logger.exception(f"Health check failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Health check failed: {str(e)}")
     finally:
         if "conn" in locals() and conn is not None:
