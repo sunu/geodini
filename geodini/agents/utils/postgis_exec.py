@@ -91,6 +91,55 @@ def delete_geometries_table():
         conn.close()
 
 
+def search_subtype_within_aoi(subtype: str, aoi: dict) -> list[dict]:
+    """Search for a subtype within an area of interest (AOI)."""
+    # aoi is the geojson geometry as dict as returned from run_postgis_query
+    # return a list of dictionaries of the form:
+    # { "geometry": result_geometry_as_json_dict, "country": country_name }
+    conn = get_postgis_connection()
+    try:
+        with conn.cursor() as cur:
+            # Convert AOI dict to GeoJSON string
+            aoi_geojson = json.dumps(aoi)
+            
+            # SQL query to find places of given subtype within the AOI
+            sql_query = """
+            SELECT 
+                ST_AsGeoJSON(ST_Simplify(geometry, 0.001)) as geometry,
+                country,
+                COALESCE(common_en_name, primary_name) as name
+            FROM all_geometries
+            WHERE 
+                source_type = 'division'
+                AND subtype = %s
+                AND geometry IS NOT NULL
+                AND ST_Within(
+                    geometry,
+                    ST_GeomFromGeoJSON(%s)
+                )
+            ORDER BY 
+                ST_Area(geometry) DESC
+            LIMIT 100
+            """
+            
+            cur.execute(sql_query, (subtype, aoi_geojson))
+            results = cur.fetchall()
+            
+            # Convert results to expected format
+            formatted_results = []
+            for row in results:
+                geometry_json = json.loads(row[0]) if row[0] else None
+                formatted_results.append({
+                    "geometry": geometry_json,
+                    "country": row[1],
+                    "name": row[2]  # Include name for debugging/logging
+                })
+            
+            return formatted_results
+    finally:
+        conn.close()
+
+
 postgis_agent = Agent(
     "openai:gpt-4.1",
     output_type=PostGISResult,

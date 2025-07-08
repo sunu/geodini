@@ -52,6 +52,13 @@ def main():
         "Area within 50km of Berlin or Paris",
     ]
 
+    set_examples = [
+        "regions in India",
+        "localities within 100km of Mumbai",
+        "localadmin in California",
+        "localities in France",
+    ]
+
     st.sidebar.markdown("**Simple queries:**")
     for example in simple_examples:
         if st.sidebar.button(
@@ -64,6 +71,14 @@ def main():
     for example in complex_examples:
         if st.sidebar.button(
             f"🗺️ {example}", key=f"complex_{example}", use_container_width=True
+        ):
+            st.session_state.query_input = example
+            search_and_display(example, api_base_url)
+
+    st.sidebar.markdown("**Set queries (multiple results):**")
+    for example in set_examples:
+        if st.sidebar.button(
+            f"📋 {example}", key=f"set_{example}", use_container_width=True
         ):
             st.session_state.query_input = example
             search_and_display(example, api_base_url)
@@ -114,11 +129,10 @@ def search_and_display(query: str, api_base_url: str):
                     "query_time": query_time,
                 }
 
-                # Update map data
-                result = data.get("result", {})
-                geometry = result.get("geometry")
-                if geometry:
-                    st.session_state.map_data = geometry
+                # Update map data - store results with names for map display
+                results = data.get("results", [])
+                if results:
+                    st.session_state.map_data = results
                 else:
                     st.session_state.map_data = None
 
@@ -160,23 +174,61 @@ def display_map():
         with col2:
             st.markdown(f"**Time:** {query_time:.2f}s")
 
-        result = data.get("result", {})
-        geometry = result.get("geometry")
-        country = result.get("country")
+        # Handle results list
+        results = data.get("results", [])
+        if results:
+            # Display multiple results
+            st.success(f"✅ Found {len(results)} result(s)!")
 
-        if geometry:
-            # Display result info
-            st.success("✅ Found result!")
+            # Display results in tabs or expandable sections
+            if len(results) == 1:
+                result = results[0]
+                geometry = result.get("geometry")
+                country = result.get("country")
+                name = result.get("name")
 
-            # Show metadata
-            if country:
-                st.markdown(f"**Country:** {country}")
+                # Show metadata
+                if name:
+                    st.markdown(f"**Name:** {name}")
+                if country:
+                    st.markdown(f"**Country:** {country}")
 
-            # Show raw geometry data in expander
-            with st.expander("🔍 Raw Geometry Data"):
-                st.json(geometry)
+                # Show raw geometry data in expander
+                with st.expander("🔍 Raw Geometry Data"):
+                    st.json(geometry)
+            else:
+                # Multiple results - show all results
+                st.markdown(f"**Results Count:** {len(results)}")
+
+                # Put all results under an expander
+                with st.expander(f"📋 View All {len(results)} Results", expanded=False):
+                    # Show all results with basic info
+                    for i, result in enumerate(results):
+                        geometry = result.get("geometry")
+                        country = result.get("country")
+                        name = result.get("name", f"Result {i+1}")
+
+                        with st.expander(
+                            f"📍 {name}" + (f" ({country})" if country else "")
+                        ):
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                if country:
+                                    st.markdown(f"**Country:** {country}")
+                            with col2:
+                                if geometry:
+                                    st.markdown(
+                                        f"**Type:** {geometry.get('type', 'Unknown')}"
+                                    )
+
+                            # Put JSON data under a toggle to save space
+                            with st.expander("🔍 View Geometry JSON", expanded=False):
+                                if geometry:
+                                    st.json(geometry)
+                                else:
+                                    st.warning("No geometry data")
         else:
-            st.warning("⚠️ No geometry data found for this query.")
+            st.warning("⚠️ No results found for this query.")
 
             # Show raw response
             with st.expander("🔍 Raw Response"):
@@ -184,8 +236,8 @@ def display_map():
 
     # Create and display map
     if st.session_state.map_data:
-        # Create map with search results
-        map_obj = create_map_with_geometry(st.session_state.map_data)
+        # Create map with search results (now handles multiple geometries)
+        map_obj = create_map_with_geometries(st.session_state.map_data)
         if map_obj:
             st_folium(map_obj, width=700, height=500, key="result_map")
         else:
@@ -195,62 +247,85 @@ def display_map():
         st.info("🗺️ No geometry data available for visualization")
 
 
-def create_map_with_geometry(geometry: Dict[str, Any]) -> Optional[folium.Map]:
-    """Create a Folium map with the given geometry."""
+def create_map_with_geometries(results: list) -> Optional[folium.Map]:
+    """Create a Folium map with multiple result objects containing geometries and names."""
 
     try:
         # Create map
         m = folium.Map(location=[0, 0], zoom_start=2)
 
-        # Add geometry to map
-        folium.GeoJson(
-            geometry,
-            style_function=lambda _: {
-                "fillColor": "#3498db",
-                "color": "#2980b9",
-                "weight": 2,
-                "fillOpacity": 0.3,
-                "opacity": 0.8,
-            },
-            tooltip=folium.Tooltip("Search Result"),
-        ).add_to(m)
+        # Colors for different results
+        colors = [
+            "#3498db",
+            "#e74c3c",
+            "#2ecc71",
+            "#f39c12",
+            "#9b59b6",
+            "#1abc9c",
+            "#34495e",
+            "#e67e22",
+        ]
 
-        # Fit map to geometry bounds
-        if geometry.get("type") == "Point":
-            coords = geometry["coordinates"]
-            m.location = [coords[1], coords[0]]
-            m.zoom_start = 10
-        else:
-            # For polygons and other geometries, try to fit bounds
+        all_bounds = []
+
+        # Add each result to map
+        for i, result in enumerate(results):
+            geometry = result.get("geometry")
+            name = result.get("name", f"Result {i+1}")
+            country = result.get("country")
+
+            if not geometry:
+                continue
+
+            color = colors[i % len(colors)]
+
+            # Create tooltip text with name and country
+            tooltip_text = name
+            if country:
+                tooltip_text += f" ({country})"
+
+            # Add geometry to map
+            folium.GeoJson(
+                geometry,
+                style_function=lambda _, color=color: {
+                    "fillColor": color,
+                    "color": color,
+                    "weight": 2,
+                    "fillOpacity": 0.3,
+                    "opacity": 0.8,
+                },
+                tooltip=folium.Tooltip(tooltip_text),
+            ).add_to(m)
+
+            # Collect bounds for fitting
             try:
                 from shapely.geometry import shape
 
                 geom_shape = shape(geometry)
                 bounds = geom_shape.bounds
-
-                # bounds are (minx, miny, maxx, maxy)
-                sw = [bounds[1], bounds[0]]  # [min_lat, min_lon]
-                ne = [bounds[3], bounds[2]]  # [max_lat, max_lon]
-
-                m.fit_bounds([sw, ne])
-
+                all_bounds.append(bounds)
             except Exception:
-                # Fallback: try to get center from coordinates
-                if "coordinates" in geometry:
-                    coords = geometry["coordinates"]
-                    if coords and len(coords) > 0:
-                        if isinstance(coords[0], list):
-                            # Multi-dimensional coordinates
-                            flat_coords = flatten_coordinates(coords)
-                            if flat_coords:
-                                center_lat = sum(
-                                    coord[1] for coord in flat_coords
-                                ) / len(flat_coords)
-                                center_lon = sum(
-                                    coord[0] for coord in flat_coords
-                                ) / len(flat_coords)
-                                m.location = [center_lat, center_lon]
-                                m.zoom_start = 8
+                pass
+
+        # Fit map to all geometries
+        if all_bounds:
+            # Calculate overall bounds
+            min_x = min(b[0] for b in all_bounds)
+            min_y = min(b[1] for b in all_bounds)
+            max_x = max(b[2] for b in all_bounds)
+            max_y = max(b[3] for b in all_bounds)
+
+            sw = [min_y, min_x]  # [min_lat, min_lon]
+            ne = [max_y, max_x]  # [max_lat, max_lon]
+
+            m.fit_bounds([sw, ne])
+        elif len(results) == 1:
+            # Single result fallback
+            geometry = results[0].get("geometry")
+            if geometry and geometry.get("type") == "Point":
+                coords = geometry["coordinates"]
+                m.location = [coords[1], coords[0]]
+                m.zoom_start = 10
 
         return m
 

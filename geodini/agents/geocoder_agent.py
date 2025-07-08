@@ -22,6 +22,7 @@ from geodini.agents.utils.postgis_exec import (
     postgis_agent,
     postgis_query_judgement_agent,
     run_postgis_query,
+    search_subtype_within_aoi,
 )
 from geodini.cache import cached
 
@@ -61,6 +62,9 @@ class RoutingResult:
 @dataclass
 class ComplexGeocodeResult:
     queries: list[str]
+    rephrased_complex_query: str | None = None
+    set_query: bool = False
+    subtype: str | None = None
 
 
 @dataclass
@@ -132,7 +136,8 @@ routing_agent = Agent(
     system_prompt="""
         Given the search query, determine if it is a simple or complex query.
         A simple query is directly geocodable location description. For example: "New York City", "London in Canada", "India"
-        A complex query contains spatial logic and operators. For example: "India and Sri Lanka", "Within 100km of Mumbai", "France north of Paris"
+        A complex query contains spatial logic and operators. For example: "India and Sri Lanka", "Within 100km of Mumbai", "France north of Paris", "Area within 100kms to 200kms of Delhi", "Border of India and China".
+        Set queries are also complex queries. For example: "regions in India", "localities within 100km of Mumbai", "localadmins in California", "localities in France" where we are looking for a set of places within an area of interest (AOI) defined by the query.
     """,
 )
 
@@ -141,11 +146,25 @@ complex_geocode_query_agent = Agent(
     "openai:gpt-4.1-mini",
     output_type=ComplexGeocodeResult,
     system_prompt="""
-        Given the search query, return ALL relevant places to search for in the query.
+        Given the search query, return ALL relevant places to search for in the query as queries.
 
-        For example, if the query is "Within 100km of Mumbai", return ["Mumbai"].
-        for "Either in Canada or in the US", return ["Canada", "US"].
-        for "France north of Paris", return ["France", "Paris"].
+        For example, if the query is "Within 100km of Mumbai", return ["Mumbai"] as queries.
+        for "Either in Canada or in the US", return ["Canada", "US"] as queries.
+        for "France north of Paris", return ["France", "Paris"] as queries.
+
+        If the query is for a set of places within an aoi, set the set_query field to True.
+        When set_query is True, set the subtype field to the type of places in the set.
+        When set_query is True, set the rephrased_complex_query field to the query to use for target area calculation without the subtype details.
+
+        For examples, if the query is "regions in India", return ["India"] as queries, set set_query to True and subtype to "region" and rephrased_complex_query to "India".
+        If the query is "localities within 100km of Mumbai", return ["Mumbai"] as queries, set set_query to True and subtype to "locality" and rephrased_complex_query to "within 100km of Mumbai".
+
+        The set of allowed subtypes is: "region", "locality", "localadmin".
+
+        If the query is not a set query, dont set the set_query field, subtype field and rephrased_complex_query field.
+        For example, the query "within 100km of Mumbai" because we are not looking for a set of subtypes, but rather just an area of interest (AOI) around Mumbai.
+
+        If you dont know the subtype, set it to the most appropriate match in the allowed subtype list.
     """,
 )
 
@@ -176,7 +195,7 @@ rerank_agent = Agent(
 
 
 @cached(prefix="simple_geocode", ttl=3600)
-async def simple_geocode(query: str) -> dict:
+async def simple_geocode(query: str, simplify_geometry: bool = True) -> dict:
     """Handle simple geocoding queries."""
     logger.info(f"Starting simple geocode for {query}")
     pm = get_plugin_manager()
@@ -190,10 +209,20 @@ async def simple_geocode(query: str) -> dict:
     results = []
     for geocoder_group in geocoders:
         with ThreadPoolExecutor() as executor:
-            futures = [
-                executor.submit(geocoder, rephrased_query.output.query)
-                for geocoder in geocoder_group
-            ]
+            futures = []
+            for geocoder in geocoder_group:
+                # Check if geocoder supports simplify_geometry parameter (like our postgis geocoder)
+                try:
+                    import inspect
+                    sig = inspect.signature(geocoder)
+                    if 'simplify_geometry' in sig.parameters:
+                        futures.append(executor.submit(geocoder, rephrased_query.output.query, simplify_geometry))
+                    else:
+                        futures.append(executor.submit(geocoder, rephrased_query.output.query))
+                except:
+                    # Fallback to original call if inspection fails
+                    futures.append(executor.submit(geocoder, rephrased_query.output.query))
+            
             for future in futures:
                 results.extend(future.result())
 
@@ -234,16 +263,21 @@ async def simple_geocode(query: str) -> dict:
 
     if places:
         # Check if top result has perfect score and others don't - skip LLM if so
-        results_with_scores = [r for r in results if 'similarity' in r]
+        results_with_scores = [r for r in results if "similarity" in r]
         if results_with_scores:
             # Sort by similarity score (highest first)
-            results_with_scores.sort(key=lambda x: x.get('similarity', 0), reverse=True)
-            top_score = results_with_scores[0].get('similarity', 0)
-            
+            results_with_scores.sort(key=lambda x: x.get("similarity", 0), reverse=True)
+            top_score = results_with_scores[0].get("similarity", 0)
+
             # If top result has perfect score (1.0) and others don't, use it directly
-            if top_score == 1.0 and (len(results_with_scores) == 1 or results_with_scores[1].get('similarity', 0) < 1.0):
-                logger.info(f"Perfect match found with score 1.0, skipping LLM reranking")
-                most_probable = results_dict.get(results_with_scores[0]['id'])
+            if top_score == 1.0 and (
+                len(results_with_scores) == 1
+                or results_with_scores[1].get("similarity", 0) < 1.0
+            ):
+                logger.info(
+                    f"Perfect match found with score 1.0, skipping LLM reranking"
+                )
+                most_probable = results_dict.get(results_with_scores[0]["id"])
             else:
                 # Use reranking agent to select the most relevant result
                 user_prompt = f"""
@@ -276,11 +310,13 @@ async def simple_geocode(query: str) -> dict:
 
     return {
         "query": query,
-        "result": {
-            "geometry": most_probable["geometry"] if most_probable else None,
-            "country": most_probable["country"] if most_probable else None,
-        },
-        "time_taken": total_time,
+        "results": [
+            {
+                "geometry": most_probable["geometry"] if most_probable else None,
+                "country": most_probable["country"] if most_probable else None,
+                "name": most_probable["name"] if most_probable else query,
+            }
+        ],
     }
 
 
@@ -291,18 +327,21 @@ async def complex_geocode(query: str) -> dict:
     complex_geocode_result = await complex_geocode_query_agent.run(
         user_prompt=f"Search query: {query}"
     )
+
+    logger.info(f"Complex geocode result: {pformat(complex_geocode_result.output)}")
+
     geocoding_queries = complex_geocode_result.output.queries
     input_geometries = {}
 
     for geocoding_query in geocoding_queries:
-        result = await simple_geocode(geocoding_query)
-        if result["result"]["geometry"]:
-            input_geometries[geocoding_query] = simplify_geometry(
-                result["result"]["geometry"], 1000
-            )
+        # For set queries, get unsimplified geometry from the database
+        # For non-set queries, allow simplification for performance
+        result = await simple_geocode(geocoding_query, simplify_geometry=not complex_geocode_result.output.set_query)
+        if result["results"] and result["results"][0]["geometry"]:
+            input_geometries[geocoding_query] = result["results"][0]["geometry"]
 
     postgis_query_result = await postgis_agent.run(
-        user_prompt=f"Search query: {query}. Geometries available in the geometries table: {input_geometries.keys()}"
+        user_prompt=f"Search query: {complex_geocode_result.output.rephrased_complex_query or query}. Geometries available in the geometries table: {input_geometries.keys()}"
     )
     sql_query = postgis_query_result.output.query
     logger.info(f"PostGIS query result: {sql_query}")
@@ -336,12 +375,24 @@ async def complex_geocode(query: str) -> dict:
 
     clear_geometries_table()
 
+    if complex_geocode_result.output.set_query:
+        # If this is a set query, we need to search for the set of results within an aoi
+        results = search_subtype_within_aoi(
+            subtype=complex_geocode_result.output.subtype, aoi=result_geometry
+        )
+        # Note: search_subtype_within_aoi already returns results with name field
+    else:
+        results = [
+            {
+                "geometry": result_geometry,
+                "country": None,  # Complex queries may not have a specific country
+                "name": query,  # Use the query as name for complex queries
+            }
+        ]
+
     return {
         "query": query,
-        "result": {
-            "geometry": result_geometry,
-            "country": None,
-        },
+        "results": results,
     }
 
 
