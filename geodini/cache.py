@@ -149,6 +149,11 @@ def cached(
 
             @wraps(func)
             async def async_wrapper(*args, **kwargs):
+                # Check if caching is disabled
+                if os.getenv("DISABLE_CACHE", "false").lower() == "true":
+                    logger.info(f"Cache disabled for {func.__name__}")
+                    return await func(*args, **kwargs)
+
                 # Generate cache key
                 if key_func:
                     cache_key = key_func(*args, **kwargs)
@@ -189,6 +194,11 @@ def cached(
 
             @wraps(func)
             def sync_wrapper(*args, **kwargs):
+                # Check if caching is disabled
+                if os.getenv("DISABLE_CACHE", "false").lower() == "true":
+                    logger.info(f"Cache disabled for {func.__name__}")
+                    return func(*args, **kwargs)
+
                 # Generate cache key
                 if key_func:
                     cache_key = key_func(*args, **kwargs)
@@ -245,4 +255,17 @@ def cache_status() -> dict:
     return {
         "available": cache.is_available(),
         "redis_client": cache.redis_client is not None,
+        "disabled": os.getenv("DISABLE_CACHE", "false").lower() == "true",
     }
+
+
+def init_cache():
+    """Initialize cache based on environment settings"""
+    if os.getenv("DISABLE_CACHE", "false").lower() == "true":
+        logger.info("Cache disabled via DISABLE_CACHE environment variable")
+        # Clear all cache on startup when cache is disabled
+        if cache.is_available():
+            cache.delete_all()
+            logger.info("Cache cleared on startup")
+    else:
+        logger.info("Cache enabled")

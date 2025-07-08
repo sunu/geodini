@@ -2,7 +2,6 @@ services:
   init-ingest-data:
     build:
       context: .
-      dockerfile: Dockerfile.api
     volumes:
       - ./geodini:/app/geodini
       - ./data:/app/data
@@ -18,7 +17,6 @@ services:
   api:
     build:
       context: .
-      dockerfile: Dockerfile.api
     ports:
       - "29000:9000"
     environment:
@@ -32,6 +30,7 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_DB=0
+      - DISABLE_CACHE=${DISABLE_CACHE:-false}
     env_file:
       - .env
     volumes:
@@ -59,7 +58,6 @@ services:
   mcp:
     build:
       context: .
-      dockerfile: Dockerfile.api
     ports:
       - "29001:9001"
     environment:
@@ -72,6 +70,7 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_DB=0
+      - DISABLE_CACHE=${DISABLE_CACHE:-false}
     env_file:
       - .env
     volumes:
@@ -87,13 +86,16 @@ services:
   frontend:
     build:
       context: .
-      dockerfile: Dockerfile.frontend
     ports:
-      - "20080:80"
+      - "20080:8501"
     volumes:
-      - ./frontend:/usr/share/nginx/html
+      - ./frontend:/app/frontend
+      - ./geodini:/app/geodini
     environment:
-      - GEODINI_API_URL=http://localhost:29000
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - STREAMLIT_SERVER_FILE_WATCHER_TYPE=watchdog
+    command: ["streamlit", "run", "frontend/app.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.fileWatcherType=watchdog"]
     depends_on:
       - api
 
