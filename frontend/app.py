@@ -1,10 +1,14 @@
-import streamlit as st
-import requests
-import folium
-from streamlit_folium import st_folium
-import json
+import os
 import time
-from typing import Dict, Any, Optional
+from typing import Optional
+
+import folium
+import requests
+import streamlit as st
+from streamlit_folium import st_folium
+
+
+API_URL = os.getenv("API_URL", "http://api:9000")
 
 
 def main():
@@ -31,7 +35,7 @@ def main():
 
     # API configuration
     api_base_url = st.sidebar.text_input(
-        "API Base URL", value="http://api:9000", help="The base URL of the Geodini API"
+        "API Base URL", value=f"{API_URL}", help="The base URL of the Geodini API"
     )
 
     # Examples in sidebar
