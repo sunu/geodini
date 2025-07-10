@@ -5,6 +5,9 @@ WORKDIR /app
 # Copy the rest of the application
 COPY geodini/ ./geodini
 
+# Copy the streamlit app
+COPY frontend/ ./frontend
+
 # Use pyproject.toml for installing dependencies
 COPY pyproject.toml .
 RUN pip install --no-cache-dir .
