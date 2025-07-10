@@ -36,4 +36,16 @@ spec:
                 port:
                   number: {{ .Values.api.service.port }}
     {{- end }}
+    {{- if and .Values.frontend.enabled .Values.ingress.frontendHost }}
+    - host: {{ .Values.ingress.frontendHost | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ include "geodini.fullname" . }}-frontend
+                port:
+                  number: {{ .Values.frontend.service.port }}
+    {{- end }}
 {{- end }}

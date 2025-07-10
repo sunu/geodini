@@ -34,6 +34,27 @@ api:
           memory: "4Gi"
       forceRecreate: false
 
+# Frontend (Streamlit) configuration
+frontend:
+  enabled: false  # Set to true to enable Streamlit frontend
+  image:
+    repository: ghcr.io/sunu/geodini/api  # Same image as API
+    pullPolicy: IfNotPresent
+    tag: "latest"
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "512Mi"
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
+  port: 8501
+  service:
+    type: ClusterIP
+    port: 8501
+  env:
+    API_URL: "http://geodini-api:9000"  # Internal API service URL
+
 # PostgreSQL/PostGIS configuration
 postgres:
   enabled: true
@@ -82,6 +103,9 @@ ingress:
 
   # API Ingress Configuration
   apiHost: "api.geodini.local" # Placeholder, e.g., api.yourdomain.com
+  
+  # Frontend Ingress Configuration (only used if frontend.enabled is true)
+  frontendHost: "geodini.local" # Placeholder, e.g., geodini.yourdomain.com
 
   # Common TLS configuration.
   # You can define one or more secrets.

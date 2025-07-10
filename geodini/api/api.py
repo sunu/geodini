@@ -7,15 +7,18 @@ import uvicorn
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
-from geodini.agents.complex_agents import geocode_complex
-from geodini.agents.simple_geocoder_agent import search_places
+from geodini.agents.geocoder_agent import search
 from geodini.agents.utils.postgis_exec import get_postgis_connection
+from geodini.cache import init_cache
 
 
 logger = logging.getLogger(__name__)
 
 # Load environment variables
 dotenv.load_dotenv()
+
+# Initialize cache based on environment settings
+init_cache()
 
 # Create FastAPI app
 app = FastAPI(
@@ -45,66 +48,29 @@ async def root():
 
 
 @app.get("/search")
-async def search(
+async def search_endpoint(
     query: str = Query(..., description="The search query string"),
 ) -> dict[str, Any]:
     """
-    Search for a place in the Overture divisions data.
+    Unified search endpoint that handles both simple and complex queries.
+    
+    Simple queries: "New York City", "London in Canada", "India"
+    Complex queries: "India and Sri Lanka", "Within 100km of Mumbai", "France north of Paris"
 
-    Returns search results based on the provided query and parameters.
+    Returns a single result with geometry and country information.
     """
     try:
-        search_term = query
+        logger.info(f"Search query: {query}")
 
-        logger.info(f"Search term: {search_term}")
-
-        # Get dictionary result from search tool
-        result = await search_places(search_term)
+        # Get result from unified search
+        result = await search(query)
 
         return result
 
     except Exception as e:
-        logger.exception(f"Error searching divisions data: {str(e)}")
+        logger.exception(f"Error processing search query: {str(e)}")
         raise HTTPException(
-            status_code=500, detail=f"Error searching divisions data: {str(e)}"
-        )
-
-
-@app.get("/search_complex")
-async def search_complex(
-    query: str = Query(
-        ...,
-        description="The complex search query string containing spatial logic and operators",
-    ),
-) -> dict[str, Any]:
-    """
-    Search for places using complex spatial queries.
-
-    Handles queries containing spatial logic and operators like:
-    - "India and Sri Lanka"
-    - "Within 100km of Mumbai"
-    - "Within 10kms of France and Spain border"
-
-    Returns search results based on the provided complex query.
-    """
-    try:
-        logger.info(f"Searching with complex query: {query}")
-
-        # Get result from complex search tool
-        result = await geocode_complex(query)
-
-        return {
-            "query": query,
-            "result": {
-                "geometry": result,
-                "country": None,
-            },
-        }
-
-    except Exception as e:
-        logger.exception(f"Error processing complex search query: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail=f"Error processing complex search query: {str(e)}"
+            status_code=500, detail=f"Error processing search query: {str(e)}"
         )
 
 

@@ -34,7 +34,7 @@ def get_postgis_engine():
     cache_condition=lambda result: result
     and len(result) > 0,  # Only cache non-empty results
 )
-def geocode(query: str) -> list[dict[str, Any]]:
+def geocode(query: str, simplify_geometry: bool = True) -> list[dict[str, Any]]:
     """
     Geocode using PostgreSQL/PostGIS database with trigram similarity search.
     Follows the same signature and return format as the geocode() function.
@@ -55,7 +55,7 @@ def geocode(query: str) -> list[dict[str, Any]]:
     query_start_time = time.time()
 
     # Build the PostgreSQL query using trigram similarity
-    sql_query = build_postgis_query()
+    sql_query = build_postgis_query(simplify_geometry)
 
     try:
         with engine.begin() as conn:
@@ -103,10 +103,13 @@ def geocode(query: str) -> list[dict[str, Any]]:
     return results
 
 
-def build_postgis_query() -> str:
+def build_postgis_query(simplify_geometry: bool = True) -> str:
     """Build PostgreSQL query for searching overture unified data using trigram similarity"""
 
-    sql_query = """
+    # Choose geometry function based on whether to simplify
+    geometry_func = "ST_AsGeoJSON(ST_Simplify(geometry, 0.001))" if simplify_geometry else "ST_AsGeoJSON(geometry)"
+
+    sql_query = f"""
         SELECT 
             id,
             COALESCE(common_en_name, primary_name) as name,
@@ -124,7 +127,7 @@ def build_postgis_query() -> str:
                 COALESCE(SIMILARITY(primary_name, :query), 0),
                 COALESCE(SIMILARITY(common_en_name, :query), 0)
             ) as similarity,
-            ST_AsGeoJSON(ST_Simplify(geometry, 0.001)) as geometry,
+            {geometry_func} as geometry,
             GREATEST(
                 COALESCE(SIMILARITY(primary_name, :query), 0),
                 COALESCE(SIMILARITY(common_en_name, :query), 0)
